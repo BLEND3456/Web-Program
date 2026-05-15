@@ -123,3 +123,24 @@ exports.createPreset = async (req, res) => {
     res.status(500).json({ message: 'Ошибка сервера', error: err.message });
   }
 };
+
+exports.updateProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { designSettings } = req.body;
+
+    const project = await Project.findByIdAndUpdate(
+      id,
+      { designSettings, updatedAt: Date.now() },
+      { new: true } // Вернуть обновленный документ
+    );
+
+    if (!project) {
+      return res.status(404).json({ message: 'Проект не найден' });
+    }
+
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ message: 'Ошибка сервера при сохранении' });
+  }
+};

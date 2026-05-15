@@ -1,27 +1,30 @@
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
+const BASE_URL = 'http://localhost:4000/api'; // Используем порт 4000
 
 async function request(endpoint, options = {}) {
   const token = localStorage.getItem('token');
-  
   const headers = {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || `Ошибка: ${response.status}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || `Ошибка: ${response.status}`);
+    }
+    return response.json();
+  } catch (err) {
+    throw new Error(err.message || 'Сервер не отвечает');
   }
-
-  return response.json();
 }
 
+// 1. ВОССТАНОВЛЕННЫЙ БЛОК АВТОРИЗАЦИИ (authAPI)
 export const authAPI = {
   login: (email, password) =>
     request('/auth/login', {
@@ -35,21 +38,22 @@ export const authAPI = {
     }),
 };
 
+// 2. ИСПРАВЛЕННЫЙ БЛОК ПРОЕКТОВ (projectsAPI)
 export const projectsAPI = {
   getAll: () => request('/presets/projects'),
   getById: (id) => request(`/presets/projects/${id}`),
   create: (data) => request('/presets/projects', { 
-    method: 'POST',
-    body: JSON.stringify(data),
+    method: 'POST', 
+    body: JSON.stringify(data) 
   }),
-  save: (id, canvasJSON) =>
-    request(`/presets/projects/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify({ canvasJSON }),
-    }),
+  save: (id, data) => request(`/presets/projects/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data), // Ожидает { designSettings: ... }
+  }),
   delete: (id) => request(`/presets/projects/${id}`, { method: 'DELETE' }),
 };
 
+// 3. БЛОК ПРЕСЕТОВ (designPresetsAPI)
 export const designPresetsAPI = {
   getAll: () => request('/presets/design-presets'),
   getById: (id) => request(`/presets/design-presets/${id}`),
@@ -59,6 +63,7 @@ export const designPresetsAPI = {
   }),
 };
 
+// 4. БЛОК ЭКСПОРТА (exportAPI)
 export const exportAPI = {
   generatePDF: (projectId) => {
     const token = localStorage.getItem('token');

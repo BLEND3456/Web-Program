@@ -1,34 +1,95 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { WorkspaceProvider, useWorkspace } from '../../context/WorkspaceContext';
 import Toolbar from './Toolbar';
 import CanvasView from './CanvasView';
 import PropertyPanel from './PropertyPanel';
 import LayersPanel from './LayersPanel';
-import Button from '../UI/Button';
 import { projectsAPI, designPresetsAPI } from '../../services/api';
 
 const WorkspaceInner = () => {
   const { presetId } = useParams();
   const navigate = useNavigate();
   const { canvas } = useWorkspace();
+  
+  // Состояния из оригинального кода
   const [showSavePresetModal, setShowSavePresetModal] = useState(false);
-  const [showRightPanel, setShowRightPanel] = useState('properties'); // 'properties' или 'layers'
+  const [showRightPanel, setShowRightPanel] = useState('properties'); 
   const [presetName, setPresetName] = useState('');
   const [presetDescription, setPresetDescription] = useState('');
   const [savingPreset, setSavingPreset] = useState(false);
+  
+  // Состояния для работы с проектом
+  const [isSaving, setIsSaving] = useState(false);
+  const [projectTitle, setProjectTitle] = useState('Загрузка...');
 
-  const handleSave = async () => {
+  // 1. Загрузка данных проекта при старте
+  useEffect(() => {
+    const fetchMeta = async () => {
+      try {
+        const data = await projectsAPI.getById(presetId);
+        setProjectTitle(data.name || 'Без названия');
+      } catch (err) {
+        console.error('Ошибка загрузки метаданных:', err);
+        setProjectTitle('Проект не найден');
+      }
+    };
+    if (presetId) fetchMeta();
+  }, [presetId]);
+
+  // 2. Ограничение перемещения объектов (Fabric.js)
+  useEffect(() => {
     if (!canvas) return;
-    const json = canvas.toJSON();
+
+    const enforceBoundaries = (e) => {
+      const obj = e.target;
+      if (!obj) return;
+
+      obj.setCoords();
+      const bounds = obj.getBoundingRect();
+
+      let newLeft = obj.left;
+      let newTop = obj.top;
+
+      if (bounds.left < 0) newLeft -= bounds.left;
+      if (bounds.top < 0) newTop -= bounds.top;
+      if (bounds.left + bounds.width > canvas.width) {
+        newLeft -= (bounds.left + bounds.width - canvas.width);
+      }
+      if (bounds.top + bounds.height > canvas.height) {
+        newTop -= (bounds.top + bounds.height - canvas.height);
+      }
+
+      if (newLeft !== obj.left || newTop !== obj.top) {
+        obj.set({ left: newLeft, top: newTop });
+        obj.setCoords(); 
+      }
+    };
+
+    canvas.on('object:moving', enforceBoundaries);
+    return () => canvas.off('object:moving', enforceBoundaries);
+  }, [canvas]);
+
+  // 3. ИСПРАВЛЕННАЯ ФУНКЦИЯ СОХРАНЕНИЯ ПРОЕКТА
+  const handleSave = async () => {
+    if (!canvas || !presetId) return;
+    
+    setIsSaving(true);
     try {
-      await projectsAPI.save(presetId, json);
-      alert('✓ Сохранено успешно');
+      const designSettings = canvas.toJSON(); 
+      // Отправляем в формате { designSettings: ... }, как требует схема бэкенда
+      await projectsAPI.save(presetId, { designSettings });
+      alert('✓ Проект сохранен успешно');
     } catch (err) {
-      alert('✗ Ошибка сохранения');
+      console.error('Ошибка сохранения проекта:', err);
+      // Проверьте Network в консоли F12: если ошибка 401, не проходит токен
+      alert('✗ Ошибка сохранения: ' + (err.response?.data?.message || 'Сервер недоступен'));
+    } finally {
+      setIsSaving(false);
     }
   };
 
+  // 4. СОХРАНЕНИЕ ПРЕСЕТА (Шаблона)
   const handleSaveAsPreset = async (e) => {
     e.preventDefault();
     if (!canvas || !presetName.trim()) {
@@ -61,97 +122,100 @@ const WorkspaceInner = () => {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-slate-900 to-slate-800">
-      {/* Верхняя панель */}
-      <div className="h-16 bg-gradient-to-r from-slate-800 to-slate-700 border-b border-slate-600 flex items-center px-6 shadow-lg">
-        <button 
-          onClick={() => navigate('/dashboard')}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white transition-all duration-200 hover:shadow-lg"
-        >
-          <span className="text-xl">←</span>
-          <span className="font-medium">Вернуться</span>
-        </button>
-        
-        <h1 className="flex-1 text-center font-bold text-2xl text-white ml-4">
-          📰 Газетный редактор
-        </h1>
-        
-        <div className="flex items-center gap-2">
+    <div className="h-screen flex flex-col bg-[#0b0f1a] text-slate-300 font-sans overflow-hidden select-none">
+      
+      {/* ВЕРХНЯЯ ПАНЕЛЬ (HEADER) */}
+      <header className="h-14 border-b border-slate-800 bg-[#0f172a] flex items-center justify-between px-6 z-20 shadow-lg">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate('/dashboard')}
+            className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </button>
+          <div className="h-6 w-[1px] bg-slate-800 mx-2"></div>
+          <div>
+            <h1 className="text-sm font-bold text-white truncate max-w-[200px]">{projectTitle}</h1>
+            <p className="text-[10px] text-indigo-400 font-mono tracking-widest uppercase">ID: {presetId?.slice(-6)}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
           <button
             onClick={handleSave}
-            className="px-6 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-medium transition-all duration-200 hover:shadow-lg hover:shadow-blue-500/50 flex items-center gap-2"
+            disabled={isSaving}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              isSaving 
+              ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
+              : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20'
+            }`}
           >
-            <span>💾</span>
-            Сохранить
+            {isSaving ? <span className="animate-spin text-[14px]">↻</span> : '💾'} 
+            {isSaving ? 'Сохранение...' : 'Сохранить'}
           </button>
+          
           <button
             onClick={() => setShowSavePresetModal(true)}
-            className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white font-medium transition-all duration-200 hover:shadow-lg hover:shadow-purple-500/50 flex items-center gap-2"
+            className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition-colors border border-slate-700"
           >
-            <span>🎨</span>
-            Сохранить как пресет
+            🎨 В пресет
           </button>
+
           <button
             onClick={handleExport}
-            className="px-6 py-2 rounded-lg bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-medium transition-all duration-200 hover:shadow-lg hover:shadow-green-500/50 flex items-center gap-2"
+            className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition-colors border border-slate-700"
           >
-            <span>📄</span>
-            Экспорт PDF
+            📄 Экспорт PDF
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* Модальное окно сохранения пресета */}
+      {/* МОДАЛЬНОЕ ОКНО: Сохранение пресета */}
       {showSavePresetModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md">
-            <h3 className="text-2xl font-bold mb-6">🎨 Сохранить как пресет</h3>
-            <form onSubmit={handleSaveAsPreset} className="space-y-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-8 py-6 border-b border-slate-800">
+              <h3 className="text-lg font-bold text-white">Сохранить как пресет</h3>
+              <p className="text-xs text-slate-500 mt-1">Создайте шаблон на основе текущего дизайна</p>
+            </div>
+            <form onSubmit={handleSaveAsPreset} className="p-8 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Название пресета
-                </label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Название пресета</label>
                 <input
                   type="text"
                   value={presetName}
                   onChange={(e) => setPresetName(e.target.value)}
-                  className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-500 focus:outline-none transition"
-                  placeholder="Новостная статья"
+                  className="w-full bg-[#1e1e1e] border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:border-indigo-500 outline-none transition-all"
+                  placeholder="Напр: Шаблон новости"
                   required
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Описание (опционально)
-                </label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Описание</label>
                 <textarea
                   value={presetDescription}
                   onChange={(e) => setPresetDescription(e.target.value)}
-                  className="w-full border-2 border-gray-300 rounded-lg px-4 py-2 focus:border-purple-500 focus:outline-none transition resize-none"
-                  placeholder="Описание стиля пресета..."
+                  className="w-full bg-[#1e1e1e] border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:border-indigo-500 outline-none transition-all resize-none"
                   rows="3"
+                  placeholder="Опишите стиль шаблона..."
                 />
               </div>
-
-              <p className="text-sm text-gray-600 bg-gray-100 p-3 rounded-lg">
-                ℹ️ Текущий дизайн страницы будет сохранён как шаблон. Позже вы сможете применить его к новым проектам одним кликом.
-              </p>
-
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setShowSavePresetModal(false)}
-                  className="flex-1 px-4 py-2 rounded-lg bg-gray-200 text-gray-800 font-medium hover:bg-gray-300 transition"
+                  className="flex-1 px-4 py-3 rounded-xl bg-slate-800 text-white text-sm font-bold hover:bg-slate-700 transition-all"
                 >
                   Отмена
                 </button>
                 <button
                   type="submit"
                   disabled={savingPreset}
-                  className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-purple-500 text-white font-medium hover:from-purple-700 hover:to-purple-600 transition shadow-lg disabled:opacity-50"
+                  className="flex-1 px-4 py-3 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-500 transition-all disabled:opacity-50 shadow-lg shadow-indigo-900/20"
                 >
-                  {savingPreset ? 'Сохранение...' : '🎨 Сохранить пресет'}
+                  {savingPreset ? 'Сохранение...' : '🎨 Создать'}
                 </button>
               </div>
             </form>
@@ -159,44 +223,44 @@ const WorkspaceInner = () => {
         </div>
       )}
 
-      {/* Рабочая область */}
-      <div className="flex flex-1 overflow-hidden gap-3 p-4">
-        {/* Левая панель инструментов */}
-        <div className="flex-shrink-0">
+      {/* РАБОЧАЯ ОБЛАСТЬ */}
+      <div className="flex-1 flex overflow-hidden">
+        <aside className="w-16 bg-[#0f172a] border-r border-slate-800 flex flex-col items-center py-4 z-10 shadow-xl">
           <Toolbar />
-        </div>
+        </aside>
 
-        {/* Центральная часть - Canvas */}
-        <div className="flex-1 flex flex-col">
+        <main className="flex-1 relative bg-[#0b0f1a] overflow-hidden flex flex-col">
           <CanvasView />
-        </div>
+        </main>
 
-        {/* Правая панель - выбор между свойствами и слоями */}
-        <div className="flex-shrink-0 w-72">
-          <div className="flex gap-2 mb-3">
+        <aside className="w-72 bg-[#0f172a] border-l border-slate-800 flex flex-col z-10 shadow-2xl">
+          <div className="flex p-1 bg-slate-900/50 m-3 rounded-xl border border-slate-800">
             <button
               onClick={() => setShowRightPanel('properties')}
-              className={`flex-1 px-3 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+              className={`flex-1 py-2 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all ${
                 showRightPanel === 'properties'
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'bg-slate-600 text-slate-300 hover:bg-slate-500'
+                  ? 'bg-slate-800 text-indigo-400 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-300'
               }`}
             >
-              ⚙️ Свойства
+              Свойства
             </button>
             <button
               onClick={() => setShowRightPanel('layers')}
-              className={`flex-1 px-3 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+              className={`flex-1 py-2 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all ${
                 showRightPanel === 'layers'
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'bg-slate-600 text-slate-300 hover:bg-slate-500'
+                  ? 'bg-slate-800 text-indigo-400 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-300'
               }`}
             >
-              📑 Слои
+              Слои
             </button>
           </div>
-          {showRightPanel === 'properties' ? <PropertyPanel /> : <LayersPanel />}
-        </div>
+          
+          <div className="flex-1 overflow-y-auto px-4 pb-6 custom-scrollbar">
+            {showRightPanel === 'properties' ? <PropertyPanel /> : <LayersPanel />}
+          </div>
+        </aside>
       </div>
     </div>
   );

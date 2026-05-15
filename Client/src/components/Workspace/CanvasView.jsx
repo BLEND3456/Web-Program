@@ -26,10 +26,9 @@ const CanvasView = () => {
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-auto bg-gray-100 p-8 flex justify-center items-start"
-      style={{ minHeight: '100%' }}
+      className="flex-1 h-full w-full overflow-auto p-12 flex justify-center items-center"
     >
-      <div className="bg-white rounded-lg shadow-lg">
+      <div className="bg-white rounded-sm shadow-[0_8px_30px_rgb(0,0,0,0.08)] ring-1 ring-slate-900/5 transition-transform duration-300">
         <canvas 
           ref={canvasRef} 
           id="fabric-canvas"

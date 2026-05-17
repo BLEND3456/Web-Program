@@ -17,7 +17,7 @@ exports.generatePDF = async (project) => {
 
     // 1. Читаем наш шрифт Arial.ttf и превращаем его в код (base64)
     // ВАЖНО: убедись, что название файла 'Arial.ttf' написано с большой или маленькой буквы точно так же, как оно называется в папке fonts!
-    const fontPath = path.join(__dirname, '../fonts/Arial.ttf'); 
+    const fontPath = path.join(__dirname, '../fonts/arial.ttf');
     const fontBase64 = fs.readFileSync(fontPath).toString('base64');
 
     // 2. Вставляем этот шрифт прямо в стили HTML через @font-face

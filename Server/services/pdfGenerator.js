@@ -1,4 +1,7 @@
 const puppeteer = require('puppeteer');
+const path = require('path');
+const fontPath = path.join(__dirname, '../fonts/Arial.ttf');
+doc.font(fontPath);
 
 exports.generatePDF = async (project) => {
   // Настройка для Windows/Linux для стабильного запуска

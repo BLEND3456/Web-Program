@@ -26,16 +26,19 @@ async function request(endpoint, options = {}) {
 
 // 1. ВОССТАНОВЛЕННЫЙ БЛОК АВТОРИЗАЦИИ (authAPI)
 export const authAPI = {
-  login: (email, password) =>
-    request('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    }),
-  register: (name, email, password) =>
-    request('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ name, email, password }),
-    }),
+  register: async (name, email, password) => {
+    const response = await api.post('/auth/register', { name, email, password });
+    return response.data;
+  },
+  login: async (email, password) => {
+    const response = await api.post('/auth/login', { email, password });
+    return response.data;
+  },
+  // Добавляем вот этот кусок:
+  resetPassword: async (name, email, newPassword) => {
+    const response = await api.post('/auth/reset-password', { name, email, newPassword });
+    return response.data;
+  }
 };
 
 // 2. ИСПРАВЛЕННЫЙ БЛОК ПРОЕКТОВ (projectsAPI)

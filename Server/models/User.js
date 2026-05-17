@@ -1,4 +1,4 @@
-const { Sequelize, DataTypes } = require('sequelize'); // Исправлено
+const { Sequelize, DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 const bcrypt = require('bcryptjs');
 
@@ -8,9 +8,10 @@ const User = sequelize.define('User', {
     primaryKey: true,
     autoIncrement: true
   },
-  name: {
+  name: { // Теперь это работает как логин
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false,
+    unique: true // Делаем логин уникальным
   },
   email: {
     type: DataTypes.STRING,

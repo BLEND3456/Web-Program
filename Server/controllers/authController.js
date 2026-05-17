@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { Op } = require('sequelize');
+const bcrypt = require('bcryptjs'); // Импортируем оператор OR
 
 const JWT_SECRET = 'bc9e55fbfafe238874d194714507e02b0dd10f9c83a62dbc8b6d364cfe6d4944';
 
@@ -10,13 +12,24 @@ const generateToken = (userId) => {
 exports.register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
+    
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Все поля обязательны' });
     }
 
-    const existing = await User.findOne({ where: { email } });
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Пароль должен быть не менее 8 символов' });
+    }
+
+    // Ищем, занят ли email ИЛИ логин (name)
+    const existing = await User.findOne({
+      where: {
+        [Op.or]: [{ email }, { name }]
+      }
+    });
+
     if (existing) {
-      return res.status(409).json({ message: 'Пользователь с таким email уже существует' });
+      return res.status(409).json({ message: 'Логин или email уже занят' });
     }
 
     const user = await User.create({ name, email, password });
@@ -28,6 +41,35 @@ exports.register = async (req, res) => {
       email: user.email,
       token
     });
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера', error: err.message });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { name, email, newPassword } = req.body;
+
+    if (!name || !email || !newPassword) {
+      return res.status(400).json({ message: 'Все поля обязательны' });
+    }
+
+    // Ищем пользователя, у которого совпадает И логин, И email
+    const user = await User.findOne({ where: { name, email } });
+    if (!user) {
+      return res.status(404).json({ message: 'Пользователь с таким логином и email не найден' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'Новый пароль должен быть не менее 8 символов' });
+    }
+
+    // Хэшируем новый пароль
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save(); // Сохраняем в базу
+
+    res.json({ message: 'Пароль успешно изменен!' });
   } catch (err) {
     res.status(500).json({ message: 'Ошибка сервера', error: err.message });
   }

@@ -18,7 +18,7 @@ sequelize.authenticate()
     console.log('PostgreSQL подключена успешно');
     // Используем force: true ТОЛЬКО ОДИН РАЗ, если таблицы не создаются. 
     // После успешного входа верните alter: true
-    return sequelize.sync({ alter: true }); 
+    return sequelize.sync({ alter: true }); // <--- ВОТ ЭТА СТРОЧКА!
   })
   .then(() => {
     app.listen(PORT, () => {

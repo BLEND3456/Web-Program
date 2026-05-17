@@ -1,4 +1,4 @@
-const { DataTypes } = require('sequelize');
+const { Sequelize, DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 
 const DesignPreset = sequelize.define('DesignPreset', {
@@ -21,6 +21,7 @@ const DesignPreset = sequelize.define('DesignPreset', {
   },
   designSettings: {
     type: DataTypes.JSONB,
+    allowNull: true,
     defaultValue: {
       fonts: {
         heading: 'Arial',

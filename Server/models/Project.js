@@ -1,4 +1,4 @@
-const { DataTypes } = require('sequelize');
+const { Sequelize, DataTypes } = require('sequelize'); // Исправлен импорт для стабильной работы
 const sequelize = require('../config/db');
 
 const Project = sequelize.define('Project', {
@@ -20,7 +20,8 @@ const Project = sequelize.define('Project', {
     type: DataTypes.INTEGER,
     defaultValue: 1000
   },
-  canvasJSON: {
+  // Используем designSettings для синхронизации с фронтендом
+  designSettings: {
     type: DataTypes.JSONB,
     allowNull: true
   },

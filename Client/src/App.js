@@ -1,20 +1,31 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
-import EditorPage from './pages/EditorPage';
+// ВОТ ЭТА СТРОКА ОБЯЗАТЕЛЬНА:
+import WorkspaceLayout from './components/Workspace/WorkspaceLayout'; 
 import ExportPage from './pages/ExportPage';
 
 function App() {
+  const isAuthenticated = !!localStorage.getItem('token');
+
   return (
-    <BrowserRouter>
+    <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/editor/:presetId?" element={<EditorPage />} />
-        <Route path="/export/:presetId" element={<ExportPage />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route 
+          path="/dashboard" 
+          element={isAuthenticated ? <DashboardPage /> : <Navigate transition to="/login" />} 
+        />
+        {/* Здесь используется WorkspaceLayout */}
+        <Route 
+          path="/editor/:id" 
+          element={isAuthenticated ? <WorkspaceLayout /> : <Navigate to="/login" />} 
+        />
+        <Route path="/export/:id" element={<ExportPage />} />
+        <Route path="/" element={<Navigate to="/dashboard" />} />
       </Routes>
-    </BrowserRouter>
+    </Router>
   );
 }
 

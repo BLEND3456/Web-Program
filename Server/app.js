@@ -9,7 +9,7 @@ const exportRoutes = require('./routes/export');
 const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' })); // JSON для больших canvasJSON
+app.use(express.json({ limit: '50mb' })); // JSON для больших canvasJSON
 
 // Маршруты
 app.use('/api/auth', authRoutes);

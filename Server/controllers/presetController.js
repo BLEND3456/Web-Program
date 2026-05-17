@@ -127,20 +127,19 @@ exports.createPreset = async (req, res) => {
 exports.updateProject = async (req, res) => {
   try {
     const { id } = req.params;
-    const { designSettings } = req.body;
+    // Бэкенд должен доставать именно designSettings
+    const { designSettings } = req.body; 
 
-    const project = await Project.findByIdAndUpdate(
-      id,
-      { designSettings, updatedAt: Date.now() },
-      { new: true } // Вернуть обновленный документ
-    );
+    const project = await Project.findByPk(id);
+    if (!project) return res.status(404).json({ message: 'Проект не найден' });
 
-    if (!project) {
-      return res.status(404).json({ message: 'Проект не найден' });
-    }
+    // Сохраняем данные в базу
+    project.designSettings = designSettings;
+    await project.save();
 
     res.json(project);
   } catch (error) {
-    res.status(500).json({ message: 'Ошибка сервера при сохранении' });
+    console.error(error);
+    res.status(500).json({ message: 'Ошибка при сохранении проекта' });
   }
 };

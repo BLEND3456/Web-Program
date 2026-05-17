@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:4000/api'; // Используем порт 4000
+const BASE_URL = 'https://newspaper-backend-u2ja.onrender.com/api'; // Используем порт 4000
 
 async function request(endpoint, options = {}) {
   const token = localStorage.getItem('token');

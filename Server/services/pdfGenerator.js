@@ -1,7 +1,6 @@
 const puppeteer = require('puppeteer');
 const path = require('path');
-const fontPath = path.join(__dirname, '../fonts/Arial.ttf');
-doc.font(fontPath);
+const fs = require('fs'); // Добавили модуль fs для чтения файла
 
 exports.generatePDF = async (project) => {
   // Настройка для Windows/Linux для стабильного запуска
@@ -13,15 +12,30 @@ exports.generatePDF = async (project) => {
   try {
     const page = await browser.newPage();
     
-    // Используем designSettings, который мы настроили в модели
+    // Используем designSettings
     const designData = project.designSettings || project.canvasJSON || {};
 
+    // 1. Читаем наш шрифт Arial.ttf и превращаем его в код (base64)
+    // ВАЖНО: убедись, что название файла 'Arial.ttf' написано с большой или маленькой буквы точно так же, как оно называется в папке fonts!
+    const fontPath = path.join(__dirname, '../fonts/Arial.ttf'); 
+    const fontBase64 = fs.readFileSync(fontPath).toString('base64');
+
+    // 2. Вставляем этот шрифт прямо в стили HTML через @font-face
     const htmlContent = `
       <!DOCTYPE html>
       <html>
       <head>
         <style>
-          body { margin: 0; padding: 0; background: white; }
+          @font-face {
+            font-family: 'Arial';
+            src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype');
+          }
+          body { 
+            margin: 0; 
+            padding: 0; 
+            background: white; 
+            font-family: 'Arial', sans-serif; /* Применяем шрифт ко всей странице */
+          }
           #canvas-container { width: ${project.width}px; height: ${project.height}px; }
         </style>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>

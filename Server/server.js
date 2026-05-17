@@ -11,7 +11,7 @@ User.hasMany(Project, { foreignKey: 'userId' });
 Project.belongsTo(User, { foreignKey: 'userId' });
 
 // Убедитесь, что здесь стоит именно тот порт, на который стучится фронтенд (4000)
-const PORT = 4000; 
+const PORT = process.env.PORT || 4000;
 
 sequelize.authenticate()
   .then(() => {

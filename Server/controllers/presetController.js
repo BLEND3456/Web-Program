@@ -19,7 +19,10 @@ exports.getProjectById = async (req, res) => {
     const project = await Project.findOne({
       where: { id: req.params.id, userId: req.userId }
     });
+    
     if (!project) return res.status(404).json({ message: 'Проект не найден' });
+    
+    // Отправляем проект целиком, включая designSettings
     res.json(project);
   } catch (err) {
     res.status(500).json({ message: 'Ошибка сервера', error: err.message });
@@ -30,11 +33,11 @@ exports.createProject = async (req, res) => {
   try {
     const { name = 'Без названия', width = 800, height = 1000, presetId } = req.body;
     
-    let canvasJSON = null;
+    let designSettings = null;
     if (presetId) {
       const preset = await DesignPreset.findByPk(presetId);
       if (preset) {
-        canvasJSON = preset.designSettings;
+        designSettings = preset.designSettings;
       }
     }
 
@@ -42,7 +45,7 @@ exports.createProject = async (req, res) => {
       name,
       width: parseInt(width),
       height: parseInt(height),
-      canvasJSON,
+      designSettings, // ИСПРАВЛЕНО: используем designSettings
       userId: req.userId
     });
     res.status(201).json(project);
@@ -58,9 +61,10 @@ exports.saveProject = async (req, res) => {
     });
     if (!project) return res.status(404).json({ message: 'Проект не найден' });
 
-    const { name, canvasJSON } = req.body;
+    // ИСПРАВЛЕНО: принимаем designSettings из тела запроса
+    const { name, designSettings } = req.body;
     if (name !== undefined) project.name = name;
-    if (canvasJSON !== undefined) project.canvasJSON = canvasJSON;
+    if (designSettings !== undefined) project.designSettings = designSettings;
 
     await project.save();
     res.json(project);

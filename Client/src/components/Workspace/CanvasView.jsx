@@ -1,42 +1,31 @@
-import { useRef, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { projectsAPI } from '../../services/api';
+import React, { useRef } from 'react';
 import { useFabric } from '../../hooks/useFabric';
 
-const CanvasView = () => {
-  const { presetId } = useParams();
-  const [preset, setPreset] = useState(null);
+const CanvasView = React.memo(({ width = 1200, height = 1700 }) => {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
 
-  useEffect(() => {
-    const loadPreset = async () => {
-      try {
-        const data = await projectsAPI.getById(presetId);
-        setPreset(data);
-      } catch (err) {
-        console.error('Ошибка загрузки проекта:', err);
-      }
-    };
-    if (presetId) loadPreset();
-  }, [presetId]);
-
-  useFabric(canvasRef, preset?.width, preset?.height);
+  // Передаем containerRef в хук для расчета зума и скролла
+  useFabric(canvasRef, containerRef, width, height);
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 h-full w-full overflow-auto p-12 flex justify-center items-center"
-    >
-      <div className="bg-white rounded-sm shadow-[0_8px_30px_rgb(0,0,0,0.08)] ring-1 ring-slate-900/5 transition-transform duration-300">
-        <canvas 
-          ref={canvasRef} 
-          id="fabric-canvas"
-          style={{ display: 'block' }}
-        />
+    <div className="flex-1 h-full w-full bg-[#121214] z-10 relative">
+      {/* Контейнер, который мы реально скроллим и зумим. 
+        Мы вешаем ref сюда, чтобы JS управлял прокруткой.
+      */}
+      <div
+        ref={containerRef}
+        className="absolute inset-0 overflow-auto flex custom-scrollbar"
+      >
+        {/* m-auto держит холст по центру, когда он маленький, и позволяет скроллить, когда большой */}
+        <div className="m-auto p-12 shrink-0">
+          <div className="relative shadow-[0_0_80px_rgba(0,0,0,0.6)] bg-white rounded-sm select-none">
+            <canvas ref={canvasRef} id="fabric-canvas" />
+          </div>
+        </div>
       </div>
     </div>
   );
-};
+});
 
 export default CanvasView;

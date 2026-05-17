@@ -1,4 +1,4 @@
-const { Sequelize, DataTypes } = require('sequelize');
+const { Sequelize, DataTypes } = require('sequelize'); // Исправлено
 const sequelize = require('../config/db');
 
 const DesignPreset = sequelize.define('DesignPreset', {
@@ -21,30 +21,7 @@ const DesignPreset = sequelize.define('DesignPreset', {
   },
   designSettings: {
     type: DataTypes.JSONB,
-    allowNull: true,
-    defaultValue: {
-      fonts: {
-        heading: 'Arial',
-        body: 'Arial',
-        headingSize: 32,
-        bodySize: 16,
-      },
-      colors: {
-        primary: '#000000',
-        secondary: '#ffffff',
-        accent: '#0066cc',
-        text: '#000000',
-      },
-      spacing: {
-        padding: 16,
-        margin: 12,
-        lineHeight: 1.5,
-      },
-      layout: {
-        columns: 2,
-        alignment: 'left',
-      }
-    }
+    defaultValue: {}
   },
   isPublic: {
     type: DataTypes.BOOLEAN,
@@ -52,7 +29,7 @@ const DesignPreset = sequelize.define('DesignPreset', {
   },
   userId: {
     type: DataTypes.INTEGER,
-    allowNull: true, // null = встроенный пресет
+    allowNull: true,
   }
 }, {
   tableName: 'design_presets',

@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { exportAPI, projectsAPI } from '../services/api';
 
 const ExportPage = () => {
-  const { presetId } = useParams();
+  // ИСПРАВЛЕНО: Достаем параметр id, так как в App.js путь прописан как /export/:id
+  const { id } = useParams();
   const navigate = useNavigate();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -12,22 +13,32 @@ const ExportPage = () => {
 
   useEffect(() => {
     const loadProject = async () => {
+      // ЗАЩИТА: не делаем запрос, если id сломан
+      if (!id || id === 'undefined') {
+        setError('Некорректный ID проекта');
+        return;
+      }
       try {
-        const data = await projectsAPI.getById(presetId);
+        const data = await projectsAPI.getById(id); // Используем id
         setProject(data);
       } catch (err) {
         setError('Проект не найден');
       }
     };
-    if (presetId) loadProject();
-  }, [presetId]);
+    if (id) loadProject();
+  }, [id]);
 
   const handleGenerate = async () => {
+    if (!id || id === 'undefined') {
+      setError('Ошибка: ID проекта не найден');
+      return;
+    }
+
     setLoading(true);
     setStatus('generating');
     setError('');
     try {
-      await exportAPI.generatePDF(presetId);
+      await exportAPI.generatePDF(id); // Используем id
       setStatus('success');
     } catch (err) {
       setError(err.message || 'Ошибка генерации');
@@ -45,7 +56,7 @@ const ExportPage = () => {
       <div className="w-full max-w-md z-10">
         {/* Хлебные крошки / Назад */}
         <button 
-          onClick={() => navigate(`/editor/${presetId}`)}
+          onClick={() => navigate(`/editor/${id}`)} // ИСПРАВЛЕНО: используем id
           className="mb-8 flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm group"
         >
           <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -66,7 +77,7 @@ const ExportPage = () => {
           <p className="text-slate-400 text-sm mb-8 leading-relaxed">
             {project?.name || 'Загрузка проекта...'} <br/>
             <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">
-              Формат: PDF • {project?.width}x{project?.height}px
+              Формат: PDF • {project?.width || '...'}x{project?.height || '...'}px
             </span>
           </p>
 
@@ -86,7 +97,7 @@ const ExportPage = () => {
           <div className="space-y-4">
             <button
               onClick={handleGenerate}
-              disabled={loading}
+              disabled={loading || !id || id === 'undefined'}
               className={`w-full py-4 rounded-2xl font-bold text-sm transition-all shadow-lg ${
                 loading 
                 ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 

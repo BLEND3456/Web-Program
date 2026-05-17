@@ -1,50 +1,53 @@
 const puppeteer = require('puppeteer');
 
-module.exports = async function generatePDF(canvasJSON) {
-  const html = `<!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <style>
-        body { margin: 0; padding: 0; display: flex; justify-content: center; background: #eee; }
-        canvas { box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-      </style>
-    </head>
-    <body>
-      <canvas id="canvas"></canvas>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
-      <script>
-        (function() {
-          const canvas = new fabric.Canvas('canvas', {
-            width: 800,
-            height: 1000,
-            backgroundColor: '#ffffff'
-          });
-          const json = ${JSON.stringify(canvasJSON)};
-          canvas.loadFromJSON(json, function() {
-            canvas.renderAll();
-            window.RENDER_COMPLETE = true;
-          });
-        })();
-      </script>
-    </body>
-    </html>`;
-
+exports.generatePDF = async (project) => {
+  // Настройка для Windows/Linux для стабильного запуска
   const browser = await puppeteer.launch({
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    headless: 'new'
+    headless: "new",
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
-
+  
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-    await page.waitForFunction(() => window.RENDER_COMPLETE === true, { timeout: 10000 });
+    
+    // Используем designSettings, который мы настроили в модели
+    const designData = project.designSettings || project.canvasJSON || {};
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { margin: 0; padding: 0; background: white; }
+          #canvas-container { width: ${project.width}px; height: ${project.height}px; }
+        </style>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+      </head>
+      <body>
+        <canvas id="canvas" width="${project.width}" height="${project.height}"></canvas>
+        <script>
+          const canvas = new fabric.StaticCanvas('canvas');
+          // Загружаем данные холста
+          canvas.loadFromJSON(${JSON.stringify(designData)}, () => {
+            canvas.renderAll();
+            window.rendered = true; // Сигнал для Puppeteer, что всё готово
+          });
+        </script>
+      </body>
+      </html>
+    `;
+
+    await page.setContent(htmlContent);
+    // Ждем, пока Fabric.js закончит отрисовку
+    await page.waitForFunction('window.rendered === true', { timeout: 5000 });
 
     const pdf = await page.pdf({
-      format: 'A4',
+      width: `${project.width}px`,
+      height: `${project.height}px`,
       printBackground: true,
-      margin: { top: '0mm', bottom: '0mm', left: '0mm', right: '0mm' }
+      margin: { top: 0, right: 0, bottom: 0, left: 0 }
     });
+
     return pdf;
   } finally {
     await browser.close();

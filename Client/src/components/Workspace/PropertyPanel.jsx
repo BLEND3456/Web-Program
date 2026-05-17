@@ -1,93 +1,123 @@
 import { useState, useEffect } from 'react';
 import { useWorkspace } from '../../context/WorkspaceContext';
-import { projectsAPI } from '../../services/api';
 
 const PropertyPanel = () => {
   const { selectedObject, canvas } = useWorkspace();
-  const [pos, setPos] = useState({ left: 0, top: 0 });
-  const [size, setSize] = useState({ width: 0, height: 0 });
-  const [fontProps, setFontProps] = useState({ fontSize: 16, fontFamily: 'Arial' });
-  const [fill, setFill] = useState('#000000');
+  const [fill, setFill] = useState('#818cf8');
+  const [opacity, setOpacity] = useState(1);
+
+  // Спектр готовых профессиональных газетных и журнальных оттенков (Photoshop Swatches)
+  const swatches = [
+    '#000000', '#1e293b', '#475569', '#94a3b8', '#cbd5e1', '#ffffff',
+    '#e11d48', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#4f46e5',
+    '#ab47bc', '#ec407a', '#26a69a', '#78909c', '#d4af37', '#8d6e63'
+  ];
 
   useEffect(() => {
     if (!selectedObject) return;
     const sync = () => {
-      setPos({ left: Math.round(selectedObject.left || 0), top: Math.round(selectedObject.top || 0) });
-      setSize({ width: Math.round(selectedObject.width * selectedObject.scaleX || 0), height: Math.round(selectedObject.height * selectedObject.scaleY || 0) });
-      setFontProps({ fontSize: selectedObject.fontSize || 16, fontFamily: selectedObject.fontFamily || 'Arial' });
       setFill(selectedObject.fill || '#000000');
+      setOpacity(selectedObject.opacity !== undefined ? selectedObject.opacity : 1);
     };
-    sync(); selectedObject.on('modified', sync);
+    sync();
+    selectedObject.on('modified', sync);
     return () => selectedObject.off('modified', sync);
   }, [selectedObject]);
 
   const update = (key, value) => {
     if (!selectedObject || !canvas) return;
-    selectedObject.set(key, value); canvas.renderAll();
+    selectedObject.set(key, value);
+    canvas.renderAll();
   };
 
   if (!selectedObject) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center text-slate-400">
-        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-2xl mb-4">✨</div>
-        <p className="text-sm">Выберите элемент на холсте, чтобы настроить его свойства</p>
+      <div className="flex flex-col items-center justify-center py-12 text-center text-slate-500 h-full">
+        <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center text-xl mb-3 opacity-50">🎨</div>
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Выберите объект для окрашивания</p>
       </div>
     );
   }
 
-  const isText = selectedObject.type === 'i-text' || selectedObject.type === 'textbox';
-  const InputClass = "w-full bg-slate-50 border border-slate-200 text-slate-700 px-3 py-2 rounded-xl text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all";
-  const LabelGroupClass = "text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 mt-6 block";
-  const LabelClass = "text-xs text-slate-500 font-medium mb-1 block";
-
   return (
-    <div className="p-6">
+    <div className="space-y-6 select-none animate-in fade-in duration-200">
       
-      {/* Позиция и Размер */}
-      <div>
-        <span className={LabelGroupClass}>Размещение</span>
-        <div className="grid grid-cols-2 gap-3">
-          <div><label className={LabelClass}>X (px)</label><input type="number" value={pos.left} onChange={(e) => update('left', parseInt(e.target.value))} className={InputClass} /></div>
-          <div><label className={LabelClass}>Y (px)</label><input type="number" value={pos.top} onChange={(e) => update('top', parseInt(e.target.value))} className={InputClass} /></div>
-          {!isText && (
-            <>
-              <div><label className={LabelClass}>Ширина</label><input type="number" value={size.width} onChange={(e) => { selectedObject.set({ scaleX: parseInt(e.target.value) / selectedObject.width }); canvas.renderAll(); }} className={InputClass} /></div>
-              <div><label className={LabelClass}>Высота</label><input type="number" value={size.height} onChange={(e) => { selectedObject.set({ scaleY: parseInt(e.target.value) / selectedObject.height }); canvas.renderAll(); }} className={InputClass} /></div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Оформление */}
-      <div>
-        <span className={LabelGroupClass}>Оформление</span>
-        <div className="flex items-center gap-3 bg-slate-50 p-2 border border-slate-200 rounded-xl">
-          <input type="color" value={fill} onChange={(e) => update('fill', e.target.value)} className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent p-0" />
-          <span className="text-sm font-medium text-slate-700 uppercase">{fill}</span>
-        </div>
-      </div>
-
-      {/* Текст */}
-      {isText && (
-        <div>
-          <span className={LabelGroupClass}>Типографика</span>
-          <div className="space-y-3">
-            <div>
-              <label className={LabelClass}>Шрифт</label>
-              <select value={fontProps.fontFamily} onChange={(e) => update('fontFamily', e.target.value)} className={InputClass}>
-                <option value="Arial">Arial</option>
-                <option value="Times New Roman">Times New Roman</option>
-                <option value="Courier New">Courier New</option>
-                <option value="Georgia">Georgia</option>
-              </select>
-            </div>
-            <div>
-              <label className={LabelClass}>Размер</label>
-              <input type="number" value={fontProps.fontSize} onChange={(e) => update('fontSize', parseInt(e.target.value))} className={InputClass} />
-            </div>
+      {/* ОКНО ВЫБОРА ЦВЕТА (Интерактивный блок а-ля Photoshop Color) */}
+      <div className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl space-y-4">
+        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Палитра спектра</span>
+        
+        {/* Визуальная градиентная матрица */}
+        <div 
+          className="h-32 rounded-xl relative overflow-hidden border border-white/10 shadow-inner"
+          style={{
+            background: 'linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, #4f46e5, #e11d48, #eab308, #22c55e, #06b6d4)'
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/40" />
+          <div className="absolute bottom-3 left-3 flex items-center gap-2 bg-black/60 px-2 py-1 rounded-md border border-white/10 backdrop-blur-sm">
+             <div className="w-3 h-3 rounded-sm border border-white/20" style={{ backgroundColor: fill }} />
+             <span className="text-[10px] font-mono text-slate-300 uppercase">{fill}</span>
           </div>
         </div>
-      )}
+
+        {/* Нативный контроллер спектра в красивой обертке */}
+        <div className="flex items-center gap-3 bg-[#121214] p-2 border border-white/10 rounded-xl">
+          <input 
+            type="color" 
+            value={fill} 
+            onChange={(e) => { setFill(e.target.value); update('fill', e.target.value); }} 
+            className="w-10 h-8 rounded-lg cursor-pointer border-0 bg-transparent p-0" 
+          />
+          <div className="flex-1 text-center">
+            <span className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">{fill}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* СВОТЧИ (Быстрые заготовки цветов, как в Photoshop Swatches) */}
+      <div className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl">
+        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3 block">Образцы (Swatches)</span>
+        <div className="grid grid-cols-6 gap-2">
+          {swatches.map((color) => (
+            <button
+              key={color}
+              onClick={() => { setFill(color); update('fill', color); }}
+              className={`aspect-square rounded-lg border transition-all transform hover:scale-110 active:scale-95 ${fill.toLowerCase() === color.toLowerCase() ? 'border-white scale-105 shadow-md ring-2 ring-indigo-500/50' : 'border-white/10'}`}
+              style={{ backgroundColor: color }}
+              title={color}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* ПОЛЗУНОК НЕПРОЗРАЧНОСТИ */}
+      <div className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl">
+        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3 block">Непрозрачность слоя</span>
+        <div className="flex items-center gap-4">
+          <input 
+            type="range" 
+            min="0" 
+            max="100" 
+            value={Math.round(opacity * 100)}
+            onChange={(e) => {
+              const val = parseInt(e.target.value) / 100;
+              setOpacity(val);
+              update('opacity', val);
+            }}
+            className="flex-1 accent-indigo-500 h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer"
+          />
+          <span className="text-xs font-mono font-bold text-indigo-400 w-10 text-right">{Math.round(opacity * 100)}%</span>
+        </div>
+      </div>
+
+      {/* КНОПКА БЫСТРОГО УДАЛЕНИЯ */}
+      <button 
+        onClick={() => { canvas.remove(selectedObject); canvas.discardActiveObject(); canvas.renderAll(); }}
+        className="w-full py-3.5 bg-rose-500/5 hover:bg-rose-500/10 text-rose-400 border border-rose-500/10 hover:border-rose-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all mt-4"
+      >
+        Удалить элемент
+      </button>
+
     </div>
   );
 };

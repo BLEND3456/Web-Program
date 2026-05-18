@@ -224,7 +224,7 @@ const Toolbar = () => {
   };
 
   return (
-    <div className="flex flex-col gap-3 w-full px-2">
+    <div className="flex flex-col gap-2 p-3 bg-[#09090b] border-r border-white/5 max-h-[calc(100vh-3rem)] overflow-y-auto custom-scrollbar select-none">
       <button onClick={toggleGrid} className="p-3 mb-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-all group" title="Сетка (Направляющие)">
         <svg className="w-6 h-6 mx-auto group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4h16v16H4V4zm0 8h16M12 4v16M8 4v16M16 4v16" /></svg>
       </button>

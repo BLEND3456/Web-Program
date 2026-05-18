@@ -40,7 +40,7 @@ const PropertyPanel = () => {
   }
 
   return (
-    <div className="space-y-6 select-none animate-in fade-in duration-200">
+    <div className="flex flex-col gap-4 p-4 bg-[#09090b] border-b border-white/5 max-h-[50vh] overflow-y-auto custom-scrollbar select-none animate-in fade-in duration-200">
       
       {/* ОКНО ВЫБОРА ЦВЕТА (Интерактивный блок а-ля Photoshop Color) */}
       <div className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl space-y-4">
@@ -113,7 +113,7 @@ const PropertyPanel = () => {
       {/* КНОПКА БЫСТРОГО УДАЛЕНИЯ */}
       <button 
         onClick={() => { canvas.remove(selectedObject); canvas.discardActiveObject(); canvas.renderAll(); }}
-        className="w-full py-3.5 bg-rose-500/5 hover:bg-rose-500/10 text-rose-400 border border-rose-500/10 hover:border-rose-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all mt-4"
+        className="w-full py-3.5 bg-rose-500/5 hover:bg-rose-500/10 text-rose-400 border border-rose-500/10 hover:border-rose-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all mt-2"
       >
         Удалить элемент
       </button>

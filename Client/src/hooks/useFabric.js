@@ -12,6 +12,12 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
   const isHandlingHistory = useRef(false);
   const saveTimeout = useRef(null);
 
+  // Хранилище для живых размеров, защищающее от устаревших замыканий (Stale Closures)
+  const dimensionsRef = useRef({ width, height });
+  useEffect(() => {
+    dimensionsRef.current = { width, height };
+  }, [width, height]);
+
   // ==========================================
   // 1. ИНИЦИАЛИЗАЦИЯ ХОЛСТА, ИСТОРИЯ И ЛОГИКА ФИГУР
   // ==========================================
@@ -24,6 +30,7 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
     const canvas = new fabric.Canvas(canvasRef.current, {
       backgroundColor: '#ffffff',
       preserveObjectStacking: true,
+      selection: false
     });
 
     canvasInstance.current = canvas;
@@ -42,7 +49,7 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
       clearTimeout(saveTimeout.current);
       saveTimeout.current = setTimeout(() => {
         if (!canvas) return;
-        const json = JSON.stringify(canvas.toJSON(['isGridLine', 'excludeFromExport']));
+        const json = JSON.stringify(canvas.toJSON(['isGridLine', 'excludeFromExport', 'isGuideLine']));
         if (historyIndex.current >= 0 && historyStack.current[historyIndex.current] === json) return;
         if (historyIndex.current < historyStack.current.length - 1) {
           historyStack.current = historyStack.current.slice(0, historyIndex.current + 1);
@@ -56,8 +63,14 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
       }, 100);
     };
 
-    canvas.on('object:added', saveState);
-    canvas.on('object:removed', saveState);
+    canvas.on('object:added', (e) => {
+      if (e.target?.isGuideLine || e.target?.excludeFromExport || e.target?.isGridLine) return;
+      saveState();
+    });
+    canvas.on('object:removed', (e) => {
+      if (e.target?.isGuideLine || e.target?.excludeFromExport || e.target?.isGridLine) return;
+      saveState();
+    });
 
     const undo = () => {
       if (historyIndex.current > 0) {
@@ -106,7 +119,7 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
     };
     window.addEventListener('keydown', handleKeyDown);
 
-    // --- МОДИФИКАЦИЯ РАЗМЕРОВ И БАРЬЕРЫ ---
+    // --- МОДИФИКАЦИЯ РАЗМЕРОВ И ДИНАМИЧЕСКИЕ БАРЬЕРЫ КРАЕВ ---
     const handleObjectModified = (e) => {
       const obj = e.target;
       if (!obj) return;
@@ -118,13 +131,13 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
       }
       if (obj.type === 'rect') {
         if (obj.scaleX !== 1 || obj.scaleY !== 1) {
-          obj.set({ width: Math.max(1, obj.width * obj.scaleX), height: Math.max(1, obj.height * obj.scaleY), scaleX: 1, scaleY: 1 });
+          obj.set({ width: Math.max(1, obj.width * obj.scaleX), height: Math.max(1, Math.round(obj.height * obj.scaleY)), scaleX: 1, scaleY: 1 });
         }
       }
 
-      // Барьеры выхода за края
-      const currentWidth = width;
-      const currentHeight = height;
+      // Берем живые размеры
+      const currentWidth = dimensionsRef.current.width;
+      const currentHeight = dimensionsRef.current.height;
       const objW = obj.getScaledWidth();
       const objH = obj.getScaledHeight();
       const isCenterX = obj.originX === 'center';
@@ -146,42 +159,38 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
     };
     canvas.on('object:modified', handleObjectModified);
 
-    // --- НАПРАВЛЯЮЩИЕ И МАГНИТЫ ---
-    const snapZone = 15; 
+    // --- НАПРАВЛЯЮЩИЕ, МАГНИТЫ И ДИНАМИЧЕСКИЕ ГРАНИЦЫ ---
+    const snapZone = 8; 
     const margin = 60; 
-    let vGuide = null;
-    let hGuide = null;
 
     const drawGuide = (coords) => {
       return new fabric.Line(coords, {
         stroke: '#ec4899', 
         strokeWidth: 1.5 / canvas.getZoom(), 
-        selectable: false, evented: false, excludeFromExport: true, opacity: 0.8
+        selectable: false, 
+        evented: false, 
+        excludeFromExport: true, 
+        opacity: 0.8,
+        isGuideLine: true
       });
     };
 
     canvas.on('object:moving', (e) => {
       const obj = e.target;
-      const currentWidth = width;
-      const currentHeight = height;
+      if (!obj) return;
+
+      // Очищаем старые розовые линии
+      canvas.getObjects().filter(o => o.isGuideLine).forEach(o => canvas.remove(o));
+
+      // Считываем живые, актуальные размеры из рефа!
+      const currentWidth = dimensionsRef.current.width;
+      const currentHeight = dimensionsRef.current.height;
+      
       const objW = obj.getScaledWidth();
       const objH = obj.getScaledHeight();
 
       const isCenterX = obj.originX === 'center';
       const isCenterY = obj.originY === 'center';
-
-      const minLeft = isCenterX ? objW / 2 : 0;
-      const maxLeft = isCenterX ? currentWidth - objW / 2 : currentWidth - objW;
-      const minTop = isCenterY ? objH / 2 : 0;
-      const maxTop = isCenterY ? currentHeight - objH / 2 : currentHeight - objH;
-
-      if (obj.left < minLeft) obj.left = minLeft;
-      if (obj.left > maxLeft) obj.left = maxLeft;
-      if (obj.top < minTop) obj.top = minTop;
-      if (obj.top > maxTop) obj.top = maxTop;
-
-      if (vGuide) { canvas.remove(vGuide); vGuide = null; }
-      if (hGuide) { canvas.remove(hGuide); hGuide = null; }
 
       let snappedX = false;
       let snappedY = false;
@@ -193,6 +202,7 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
       const currBottomEdge = isCenterY ? obj.top + objH / 2 : obj.top + objH;
       const currCenterY = isCenterY ? obj.top : obj.top + objH / 2;
 
+      // 1. Рассчитываем магнитное притяжение
       if (Math.abs(currCenterX - currentWidth / 2) < snapZone) {
         obj.left = isCenterX ? currentWidth / 2 : currentWidth / 2 - objW / 2;
         snappedX = currentWidth / 2;
@@ -215,21 +225,31 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
         snappedY = currentHeight - margin;
       }
 
+      // 2. Рассчитываем жёсткие ограничения на основе динамических размеров
+      const minLeft = isCenterX ? objW / 2 : 0;
+      const maxLeft = isCenterX ? currentWidth - objW / 2 : currentWidth - objW;
+      const minTop = isCenterY ? objH / 2 : 0;
+      const maxTop = isCenterY ? currentHeight - objH / 2 : currentHeight - objH;
+
+      if (obj.left < minLeft) obj.left = minLeft;
+      if (obj.left > maxLeft) obj.left = maxLeft;
+      if (obj.top < minTop) obj.top = minTop;
+      if (obj.top > maxTop) obj.top = maxTop;
+
+      // 3. Рисуем новые розовые линии выравнивания
       if (snappedX !== false) {
-        vGuide = drawGuide([snappedX, 0, snappedX, currentHeight]);
-        canvas.add(vGuide);
+        canvas.add(drawGuide([snappedX, 0, snappedX, currentHeight]));
       }
       if (snappedY !== false) {
-        hGuide = drawGuide([0, snappedY, currentWidth, snappedY]);
-        canvas.add(hGuide);
+        canvas.add(drawGuide([0, snappedY, currentWidth, snappedY]));
       }
 
       obj.setCoords();
+      canvas.renderAll();
     });
 
     canvas.on('mouse:up', () => {
-      if (vGuide) { canvas.remove(vGuide); vGuide = null; }
-      if (hGuide) { canvas.remove(hGuide); hGuide = null; }
+      canvas.getObjects().filter(o => o.isGuideLine).forEach(o => canvas.remove(o));
       canvas.renderAll();
     });
 
@@ -249,7 +269,7 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
   }, []); 
 
   // ==========================================
-  // 2. ИНТЕРАКТИВНАЯ НАВИГАЦИЯ (НАДЕЖНАЯ НА ОСНОВЕ НАТИВНОГО СТАРУШКИ-КОДА)
+  // 2. ИНТЕРАКТИВНАЯ НАВИГАЦИЯ (МАСШТАБ И ПАНОРАМА)
   // ==========================================
   useEffect(() => {
     const canvas = canvasInstance.current;
@@ -258,7 +278,6 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
 
     let currentScale = 1;
 
-    // Авто-подгонка по экрану при первой загрузке или ресайзе
     const fitToScreen = () => {
       const availableWidth = container.clientWidth - 80;
       const availableHeight = container.clientHeight - 80;
@@ -274,7 +293,6 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
     fitToScreen(); 
     window.addEventListener('resize', fitToScreen);
 
-    // --- ЗУМ (ALT + КОЛЕСИКО МЫШИ) ---
     const handleWheel = (e) => {
       if (e.altKey) {
         e.preventDefault(); 
@@ -283,11 +301,9 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
         const direction = e.deltaY > 0 ? -1 : 1;
         let newScale = currentScale * (1 + direction * zoomStep);
 
-        // Ограничиваем зум от 10% до 500%
         if (newScale < 0.1) newScale = 0.1;
         if (newScale > 5) newScale = 5;
 
-        // Чтобы зумить ровно в ту точку, где находится курсор:
         const canvasRect = canvas.wrapperEl.getBoundingClientRect();
         
         const mouseXOnCanvas = e.clientX - canvasRect.left;
@@ -311,7 +327,6 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
       }
     };
 
-    // --- ПАНОРАМИРОВАНИЕ (SHIFT + НАЖАТИЕ КОЛЕСИКА) ---
     let isPanning = false;
     let startX = 0;
     let startY = 0;
@@ -347,7 +362,6 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
       }
     };
 
-    // Блокируем надоедливую иконку авто-скролла в браузере
     const disableAuxClick = (e) => {
       if (e.button === 1 && e.shiftKey) e.preventDefault();
     };

@@ -55,3 +55,30 @@ input[type=number] {
     appearance: textfield; /* Добавьте эту строку */
   }
 
+  .canvas-container {
+    outline: none !important;
+}
+
+/* На всякий случай гасим фокус на самих внутренних холстах */
+canvas:focus, canvas:active {
+    outline: none !important;
+}
+
+.canvas-container,
+.canvas-container *,
+canvas,
+.upper-canvas,
+.lower-canvas,
+#fabric-canvas {
+    outline: none !important;
+    outline-width: 0 !important;
+    box-shadow: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+}
+
+/* На всякий случай убираем фокус с обертки в CanvasView */
+#fabric-canvas:focus, 
+.canvas-container:focus, 
+.upper-canvas:focus {
+    outline: none !important;
+}

@@ -1,18 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authAPI } from '../../services/api';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 const LoginForm = ({ onForgotPassword }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false); // Стейт для глазика
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-  
     try {
       const response = await authAPI.login(email, password);
       if (response && response.token) {
@@ -27,10 +27,10 @@ const LoginForm = ({ onForgotPassword }) => {
     }
   };
 
-  const inputStyles = "w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all";
+  const inputStyles = "w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all pl-11";
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5 animate-in fade-in duration-300">
       <h2 className="text-3xl font-extrabold text-center text-gray-800 mb-6">Вход</h2>
       
       {error && (
@@ -39,7 +39,8 @@ const LoginForm = ({ onForgotPassword }) => {
         </div>
       )}
       
-      <div>
+      <div className="relative">
+        <Mail className="absolute left-4 top-3.5" color="#9ca3af" size={20} />
         <input
           type="email"
           placeholder="Email"
@@ -51,6 +52,7 @@ const LoginForm = ({ onForgotPassword }) => {
       </div>
       
       <div className="relative">
+        <Lock className="absolute left-4 top-3.5" color="#9ca3af" size={20} />
         <input
           type={showPassword ? "text" : "password"}
           placeholder="Пароль"
@@ -59,13 +61,12 @@ const LoginForm = ({ onForgotPassword }) => {
           className={inputStyles}
           required
         />
-        {/* Кнопка-глазик, абсолютно спозиционированная поверх поля ввода */}
         <button
           type="button"
           onClick={() => setShowPassword(!showPassword)}
-          className="absolute right-4 top-3.5 text-gray-400 hover:text-gray-600 focus:outline-none text-xl leading-none"
+          className="absolute right-4 top-3.5 text-gray-400 hover:text-blue-500 transition-colors"
         >
-          {showPassword ? "🙈" : "👁️"}
+          {showPassword ? <EyeOff color="#9ca3af" size={20} /> : <Eye color="#9ca3af" size={20} />}
         </button>
       </div>
 
@@ -79,7 +80,7 @@ const LoginForm = ({ onForgotPassword }) => {
         </button>
       </div>
 
-      <button type="submit" className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors">
+      <button type="submit" className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-blue-600/30">
         Войти
       </button>
     </form>

@@ -6,6 +6,7 @@ import CanvasView from './CanvasView';
 import PropertyPanel from './PropertyPanel';
 import LayersPanel from './LayersPanel';
 import { projectsAPI, designPresetsAPI } from '../../services/api';
+import { Pencil } from 'lucide-react';
 
 // --- ВЕРХНЯЯ СТРОКА НАСТРОЕК (CONTEXT BAR) ---
 const ContextBar = () => {
@@ -58,7 +59,7 @@ const ContextBar = () => {
   };
 
   return (
-    <div className="h-12 border-b border-white/5 bg-[#09090b] flex items-center px-6 gap-6 text-xs text-slate-400 select-none z-10">
+    <div className="h-12 border border-white/5 bg-[#09090b] flex items-center px-4 gap-6 text-xs text-slate-400 select-none z-10 rounded-xl mt-2 mx-2 shadow-lg">
       {!isText ? (
         <div className="flex items-center gap-2 text-slate-500 font-medium">
           <span className="w-1.5 h-1.5 rounded-full bg-slate-700 animate-pulse"></span>
@@ -233,11 +234,31 @@ const WorkspaceInner = () => {
           <div className="h-6 w-[1px] bg-white/10"></div>
           <div className="flex flex-col">
             {isEditingTitle ? (
-              <input autoFocus value={editTitleValue} onChange={(e) => setEditTitleValue(e.target.value)} onBlur={handleTitleSave} onKeyDown={(e) => e.key === 'Enter' && handleTitleSave()} className="bg-[#09090b] text-[13px] font-semibold text-slate-100 border border-indigo-500/50 rounded px-1.5 py-0.5 outline-none w-48" />
+              <input 
+                autoFocus 
+                value={editTitleValue} 
+                onChange={(e) => setEditTitleValue(e.target.value)} 
+                onBlur={handleTitleSave} 
+                onKeyDown={(e) => e.key === 'Enter' && handleTitleSave()} 
+                className="bg-[#09090b] text-[13px] font-semibold text-slate-100 border border-indigo-500/50 rounded px-1.5 py-0.5 outline-none w-48" 
+              />
             ) : (
-              <h1 onDoubleClick={handleTitleDoubleClick} className="text-[13px] font-semibold text-slate-100 tracking-wide cursor-pointer hover:text-indigo-400 transition-colors">{projectTitle}</h1>
+              /* Обернули заголовок в div с группой для эффектов при наведении */
+              <div 
+                onClick={handleTitleDoubleClick} 
+                className="flex items-center gap-2 group cursor-pointer"
+                title="Нажмите, чтобы изменить название"
+              >
+                <h1 className="text-[13px] font-semibold text-slate-100 tracking-wide group-hover:text-indigo-400 transition-colors">
+                  {projectTitle}
+                </h1>
+                {/* Иконка карандаша: маленькая, серая, становится синей при наведении на блок */}
+                <Pencil className="w-3 h-3 text-slate-600 group-hover:text-indigo-400 transition-colors" />
+              </div>
             )}
-            <p className="text-[10px] text-indigo-400/80 font-mono tracking-widest mt-0.5">ID: {(!id || id === 'undefined') ? 'ERR' : String(id).slice(-8)}</p>
+            <p className="text-[10px] text-indigo-400/80 font-mono tracking-widest mt-0.5">
+              ID: {(!id || id === 'undefined') ? 'ERR' : String(id).slice(-8)}
+            </p>
           </div>
         </div>
 

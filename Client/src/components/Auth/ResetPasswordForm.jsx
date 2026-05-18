@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { authAPI } from '../../services/api';
+import { User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 const ResetPasswordForm = ({ onSuccess, onCancel }) => {
   const [name, setName] = useState('');
@@ -12,9 +13,7 @@ const ResetPasswordForm = ({ onSuccess, onCancel }) => {
     e.preventDefault();
     setError('');
 
-    if (newPassword.length < 8) {
-      return setError('Новый пароль должен содержать минимум 8 символов');
-    }
+    if (newPassword.length < 8) return setError('Новый пароль должен содержать минимум 8 символов');
 
     try {
       await authAPI.resetPassword(name, email, newPassword);
@@ -24,12 +23,12 @@ const ResetPasswordForm = ({ onSuccess, onCancel }) => {
     }
   };
 
-  const inputStyles = "w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all";
+  const inputStyles = "w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all pl-11";
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      <h2 className="text-3xl font-extrabold text-center text-gray-800 mb-6">Сброс пароля</h2>
-      <p className="text-center text-sm text-gray-500 mb-4">
+    <form onSubmit={handleSubmit} className="space-y-5 animate-in fade-in duration-300">
+      <h2 className="text-3xl font-extrabold text-center text-gray-800 mb-4">Сброс пароля</h2>
+      <p className="text-sm text-gray-500 text-center mb-6">
         Введите ваш логин и email, чтобы установить новый пароль.
       </p>
 
@@ -39,26 +38,32 @@ const ResetPasswordForm = ({ onSuccess, onCancel }) => {
         </div>
       )}
 
-      <div>
+      <div className="relative">
+        <User className="absolute left-4 top-3.5" color="#9ca3af" size={20} />
         <input type="text" placeholder="Ваш логин" value={name} onChange={(e) => setName(e.target.value)} className={inputStyles} required />
       </div>
-      <div>
+      
+      <div className="relative">
+        <Mail className="absolute left-4 top-3.5" color="#9ca3af" size={20} />
         <input type="email" placeholder="Ваш Email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputStyles} required />
       </div>
 
       <div className="relative">
+        <Lock className="absolute left-4 top-3.5" color="#9ca3af" size={20} />
         <input type={showPassword ? "text" : "password"} placeholder="Новый пароль" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputStyles} required />
-        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-3.5 text-gray-400 hover:text-gray-600 text-xl leading-none">
-          {showPassword ? "🙈" : "👁️"}
+        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-3.5 text-gray-400 hover:text-blue-500 transition-colors">
+          {showPassword ? <EyeOff color="#9ca3af" size={20} /> : <Eye color="#9ca3af" size={20} />}
         </button>
       </div>
 
-      <button type="submit" className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors">
-        Сменить пароль
-      </button>
-      <button type="button" onClick={onCancel} className="w-full py-3 px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-xl transition-colors mt-2">
-        Отмена
-      </button>
+      <div className="flex flex-col gap-3 pt-2">
+        <button type="submit" className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-blue-600/30">
+          Сменить пароль
+        </button>
+        <button type="button" onClick={onCancel} className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">
+          Отмена
+        </button>
+      </div>
     </form>
   );
 };

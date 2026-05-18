@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProjectList from '../components/Dashboard/ProjectList';
 import { projectsAPI } from '../services/api';
+// Импортируем стильные иконки Lucide
+import { Plus, FolderArchive, LogOut, Newspaper } from 'lucide-react';
+
 
 const NEW_DOCUMENT_PRESETS = [
   { id: 'a3-150', name: 'A3 (Таблоид)', sub: '150 DPI', w: 1754, h: 2480, desc: '29.7 × 42 см' },
@@ -25,7 +28,6 @@ const CreateFileModal = ({ isOpen, onClose, onConfirm }) => {
   };
 
   return (
-    /* ИСПРАВЛЕНО: bg-black/40 вместо 90 для работы размытия */
     <div className="fixed inset-0 bg-black/40 backdrop-blur-xl flex items-center justify-center z-[200] animate-in fade-in duration-300">
       <div className="bg-[#0c0c0e]/80 border border-white/10 rounded-[3rem] w-[1000px] h-[700px] flex overflow-hidden shadow-2xl transform animate-in zoom-in-95">
         
@@ -97,34 +99,37 @@ const DashboardPage = () => {
       <aside className="w-72 border-r border-white/5 bg-[#09090b] flex flex-col p-8 shrink-0 z-20">
         <div className="mb-12 pl-2">
           <h2 className="text-2xl font-serif font-bold text-white tracking-tighter italic mb-4">NEWS EDIT</h2>
-          <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center text-3xl border border-white/5 shadow-inner">
-            <span className="drop-shadow-lg">📰</span>
+          <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center border border-white/5 shadow-inner text-indigo-400">
+            {/* Заменили эмодзи газеты на красивую иконку */}
+            <Newspaper className="w-6 h-6" strokeWidth={1.5} />
           </div>
         </div>
 
         <nav className="flex-1 space-y-4">
           <button 
             onClick={() => setIsCreateModalOpen(true)}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-2xl font-bold text-[10px] tracking-[0.1em] flex items-center justify-center gap-3 transition-all shadow-[0_10px_30px_rgba(79,70,229,0.25)] uppercase mb-10"
+            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-2xl font-bold text-[10px] tracking-[0.1em] flex items-center justify-center gap-2.5 transition-all shadow-[0_10px_30px_rgba(79,70,229,0.25)] uppercase mb-10"
           >
-            <span className="text-lg">+</span> Создать файл
+            {/* Заменили плюс */}
+            <Plus className="w-4 h-4" strokeWidth={2.5} /> Создать файл
           </button>
 
           <button className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 text-white font-bold text-[10px] tracking-[0.2em] border border-white/5 transition-all opacity-80 hover:opacity-100">
-             <span>📂</span> БИБЛИОТЕКА
+             {/* Заменили эмодзи папки */}
+             <FolderArchive className="w-4 h-4 text-slate-400" strokeWidth={2} /> БИБЛИОТЕКА
           </button>
         </nav>
 
         <button 
           onClick={handleLogout}
-          className="mt-auto flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 text-slate-500 hover:text-white font-bold text-[10px] tracking-[0.2em] transition-all uppercase"
+          className="mt-auto flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 text-slate-500 hover:text-white font-bold text-[10px] tracking-[0.2em] transition-all uppercase group"
         >
-          <span>🚪</span> Выйти
+          {/* Заменили эмодзи двери выхода */}
+          <LogOut className="w-4 h-4 text-slate-500 group-hover:text-rose-400 transition-colors" strokeWidth={2} /> Выйти
         </button>
       </aside>
 
       <main className="flex-1 overflow-y-auto custom-scrollbar relative">
-        {/* ИСПРАВЛЕНО: bg-indigo-600/20 вместо /5 для яркости под размытием */}
         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-600/20 blur-[130px] rounded-full -mr-32 -mt-32 pointer-events-none"></div>
         
         <div className="max-w-[1400px] mx-auto p-12">

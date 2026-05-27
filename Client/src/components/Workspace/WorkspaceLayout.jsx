@@ -6,7 +6,8 @@ import CanvasView from './CanvasView';
 import PropertyPanel from './PropertyPanel';
 import LayersPanel from './LayersPanel';
 import { projectsAPI, designPresetsAPI } from '../../services/api';
-import { Pencil } from 'lucide-react';
+import { captureCanvasPreview } from '../../utils/projectPreview';
+import { Pencil, Minus, Plus } from 'lucide-react';
 
 // --- ВЕРХНЯЯ СТРОКА НАСТРОЕК (CONTEXT BAR) ---
 const ContextBar = () => {
@@ -61,8 +62,8 @@ const ContextBar = () => {
   return (
     <div className="h-12 border border-white/5 bg-[#09090b] flex items-center px-4 gap-6 text-xs text-slate-400 select-none z-10 rounded-xl mt-2 mx-2 shadow-lg">
       {!isText ? (
-        <div className="flex items-center gap-2 text-slate-500 font-medium">
-          <span className="w-1.5 h-1.5 rounded-full bg-slate-700 animate-pulse"></span>
+        <div className="flex items-center gap-2.5 text-slate-500 font-medium bg-white/[0.02] border border-white/5 px-3 py-1.5 rounded-xl shadow-inner ml-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-slate-600 animate-pulse"></span>
           Выделите текстовый элемент для настройки параметров типографики
         </div>
       ) : (
@@ -134,58 +135,111 @@ const WorkspaceInner = () => {
   const [projectTitle, setProjectTitle] = useState('Загрузка...');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitleValue, setEditTitleValue] = useState('');
+  
+  // УБРАЛИ ДУБЛИКАТЫ:
   const [toast, setToast] = useState(null);
+  const canvasContainerRef = useRef(null);
+  const leaveSaveRef = useRef({ id, projectTitle, canvas, projectSize });
+  const [zoomDisplay, setZoomDisplay] = useState(1);
 
-  const hasLoadedData = useRef(false);
+  useEffect(() => {
+    leaveSaveRef.current = { id, projectTitle, canvas, projectSize };
+  }, [id, projectTitle, canvas, projectSize]);
 
-  const showNotification = (message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+  const savePreview = async () => {
+    if (!canvas || !id || id === 'undefined') return;
+    const previewUrl = await captureCanvasPreview(canvas, projectSize.width, projectSize.height);
+    if (!previewUrl) return;
+    await projectsAPI.save(id, {
+      name: projectTitle,
+      designSettings: canvas.toJSON(),
+      previewUrl
+    });
+  };
+
+  const goToDashboard = async () => {
+    try {
+      await savePreview();
+    } catch {
+      /* не блокируем выход */
+    }
+    navigate('/dashboard');
   };
 
   useEffect(() => {
-    if (!canvas || hasLoadedData.current) return;
-    hasLoadedData.current = true;
+    if (!canvas) return;
+    const syncZoom = () => setZoomDisplay(canvas.getZoom());
+    syncZoom(); 
+    window.addEventListener('wheel', syncZoom);
+    window.addEventListener('resize', syncZoom);
+    return () => {
+      window.removeEventListener('wheel', syncZoom);
+      window.removeEventListener('resize', syncZoom);
+    };
+  }, [canvas]);
+
+  const handleZoom = (action) => {
+    if (!canvas) return;
+    let newZoom = canvas.getZoom();
+
+    if (action === 'in') newZoom += 0.1;
+    if (action === 'out') newZoom -= 0.1;
+    if (action === 'reset' && canvasContainerRef.current) {
+      const container = canvasContainerRef.current;
+      const availableWidth = container.clientWidth - 80;
+      const availableHeight = container.clientHeight - 80;
+      newZoom = Math.min(availableWidth / projectSize.width, availableHeight / projectSize.height);
+    }
+    if (newZoom < 0.1) newZoom = 0.1;
+    if (newZoom > 5) newZoom = 5;
+
+    canvas.setZoom(newZoom);
+    canvas.setWidth(projectSize.width * newZoom);
+    canvas.setHeight(projectSize.height * newZoom);
+    canvas.renderAll();
+    setZoomDisplay(newZoom);
+  };
+
+  useEffect(() => {
+    if (!canvas || !id || id === 'undefined') {
+      if (!id || id === 'undefined') setProjectTitle('Ошибка ID');
+      return;
+    }
+
+    let cancelled = false;
 
     const loadProjectData = async () => {
-      if (!id || id === 'undefined') { setProjectTitle('Ошибка ID'); return; }
+      setProjectTitle('Загрузка...');
       try {
         const data = await projectsAPI.getById(id);
+        if (cancelled) return;
+
         setProjectTitle(data.name || 'Без названия');
-        if (data.width && data.height) setProjectSize({ width: data.width, height: data.height });
-        
+        if (data.width && data.height) {
+          setProjectSize({ width: data.width, height: data.height });
+        }
+
         if (data.designSettings) {
           canvas.clear();
-          canvas.loadFromJSON(data.designSettings, () => canvas.renderAll());
+          canvas.loadFromJSON(data.designSettings, () => {
+            if (cancelled) return;
+            canvas.renderAll();
+            canvas.fire('project:loaded');
+          });
+        } else {
+          canvas.fire('project:loaded');
         }
-      } catch (err) { setProjectTitle('Проект не найден'); }
+      } catch (err) {
+        if (!cancelled) setProjectTitle('Проект не найден');
+      }
     };
+
     loadProjectData();
+    return () => { cancelled = true; };
   }, [id, canvas]);
 
   const handleTitleDoubleClick = () => { setEditTitleValue(projectTitle); setIsEditingTitle(true); };
 
-  // УМНАЯ ГЕНЕРАЦИЯ ДЛЯ ТУМБНЕЙЛА (ВЫНЕСЕНА В УТИЛИТУ)
-  const generatePreviewDataUrl = () => {
-    if (!canvas) return null;
-    // Находим все служебные элементы сетки и направляющих
-    const guides = canvas.getObjects().filter(o => o.isGridLine || o.excludeFromExport);
-    // Временно хидим их, чтобы картинка была чистой
-    guides.forEach(g => g.set('visible', false));
-    canvas.renderAll();
-
-    const dataUrl = canvas.toDataURL({
-      format: 'jpeg',
-      quality: 0.4,
-      multiplier: 0.25 // Сжимаем до 25%, чтобы не забивать базу огромными строками
-    });
-
-    // Возвращаем сетку обратно на экран
-    guides.forEach(g => g.set('visible', true));
-    canvas.renderAll();
-
-    return dataUrl;
-  };
 
   const handleTitleSave = async () => {
     setIsEditingTitle(false);
@@ -193,8 +247,12 @@ const WorkspaceInner = () => {
     if (newTitle !== projectTitle) {
       setProjectTitle(newTitle);
       try {
-        const previewUrl = generatePreviewDataUrl();
-        await projectsAPI.save(id, { name: newTitle, designSettings: canvas.toJSON(), previewUrl });
+        const previewUrl = await captureCanvasPreview(canvas, projectSize.width, projectSize.height);
+        await projectsAPI.save(id, {
+          name: newTitle,
+          designSettings: canvas.toJSON(),
+          ...(previewUrl && { previewUrl })
+        });
         showNotification('Название обновлено', 'success');
       } catch (err) { showNotification('Ошибка сохранения названия', 'error'); }
     }
@@ -204,9 +262,16 @@ const WorkspaceInner = () => {
     if (!canvas || !id || id === 'undefined') return showNotification('Ошибка ID', 'error');
     setIsSaving(true);
     try {
-      const previewUrl = generatePreviewDataUrl();
-      await projectsAPI.save(id, { name: projectTitle, designSettings: canvas.toJSON(), previewUrl });
-      showNotification('Проект успешно сохранен', 'success');
+      const previewUrl = await captureCanvasPreview(canvas, projectSize.width, projectSize.height);
+      await projectsAPI.save(id, {
+        name: projectTitle,
+        designSettings: canvas.toJSON(),
+        ...(previewUrl && { previewUrl })
+      });
+      showNotification(
+        previewUrl ? 'Проект успешно сохранен' : 'Сохранено (добавьте элементы на холст для превью)',
+        'success'
+      );
     } catch (err) { showNotification('Ошибка сохранения', 'error'); } 
     finally { setIsSaving(false); }
   };
@@ -224,41 +289,29 @@ const WorkspaceInner = () => {
     finally { setIsCreatingPreset(false); }
   };
 
+  const showNotification = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   return (
     <div className="h-screen flex flex-col bg-[#09090b] text-slate-300 overflow-hidden font-sans selection:bg-indigo-500/30">
       <header className="h-16 border-b border-white/5 bg-[#09090b]/80 backdrop-blur-xl flex items-center justify-between px-6 z-20">
         <div className="flex items-center gap-5">
-          <button onClick={() => navigate('/dashboard')} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-all text-slate-400 hover:text-white">
+          <button onClick={goToDashboard} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-all text-slate-400 hover:text-white">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
           </button>
           <div className="h-6 w-[1px] bg-white/10"></div>
           <div className="flex flex-col">
             {isEditingTitle ? (
-              <input 
-                autoFocus 
-                value={editTitleValue} 
-                onChange={(e) => setEditTitleValue(e.target.value)} 
-                onBlur={handleTitleSave} 
-                onKeyDown={(e) => e.key === 'Enter' && handleTitleSave()} 
-                className="bg-[#09090b] text-[13px] font-semibold text-slate-100 border border-indigo-500/50 rounded px-1.5 py-0.5 outline-none w-48" 
-              />
+              <input autoFocus value={editTitleValue} onChange={(e) => setEditTitleValue(e.target.value)} onBlur={handleTitleSave} onKeyDown={(e) => e.key === 'Enter' && handleTitleSave()} className="bg-[#09090b] text-[13px] font-semibold text-slate-100 border border-indigo-500/50 rounded px-1.5 py-0.5 outline-none w-48" />
             ) : (
-              /* Обернули заголовок в div с группой для эффектов при наведении */
-              <div 
-                onClick={handleTitleDoubleClick} 
-                className="flex items-center gap-2 group cursor-pointer"
-                title="Нажмите, чтобы изменить название"
-              >
-                <h1 className="text-[13px] font-semibold text-slate-100 tracking-wide group-hover:text-indigo-400 transition-colors">
-                  {projectTitle}
-                </h1>
-                {/* Иконка карандаша: маленькая, серая, становится синей при наведении на блок */}
+              <div onClick={handleTitleDoubleClick} className="flex items-center gap-2 group cursor-pointer" title="Нажмите, чтобы изменить название">
+                <h1 className="text-[13px] font-semibold text-slate-100 tracking-wide group-hover:text-indigo-400 transition-colors">{projectTitle}</h1>
                 <Pencil className="w-3 h-3 text-slate-600 group-hover:text-indigo-400 transition-colors" />
               </div>
             )}
-            <p className="text-[10px] text-indigo-400/80 font-mono tracking-widest mt-0.5">
-              ID: {(!id || id === 'undefined') ? 'ERR' : String(id).slice(-8)}
-            </p>
+            <p className="text-[10px] text-indigo-400/80 font-mono tracking-widest mt-0.5">ID: {(!id || id === 'undefined') ? 'ERR' : String(id).slice(-8)}</p>
           </div>
         </div>
 
@@ -278,7 +331,24 @@ const WorkspaceInner = () => {
           <ContextBar />
           <main className="flex-1 relative bg-[#121214] flex items-center justify-center overflow-hidden z-0">
             <div className="absolute inset-0 opacity-40" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.1) 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
-            <CanvasView width={projectSize.width} height={projectSize.height} />
+            <CanvasView width={projectSize.width} height={projectSize.height} containerRef={canvasContainerRef} />
+            
+            {/* Панель масштабирования */}
+            <div className="absolute bottom-8 right-8 flex items-center gap-1 bg-[#09090b]/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-1.5 z-50 text-slate-300 select-none animate-in fade-in duration-500">
+              <button onClick={() => handleZoom('out')} className="p-2.5 hover:bg-white/10 rounded-xl transition-all text-slate-400 hover:text-white group" title="Отдалить">
+                <Minus className="w-4 h-4 group-hover:scale-110 transition-transform" strokeWidth={2.5} />
+              </button>
+              <div 
+                className="w-16 text-center text-[11px] font-black uppercase tracking-wider cursor-pointer hover:bg-white/5 py-2.5 rounded-xl hover:text-indigo-400 transition-colors" 
+                onClick={() => handleZoom('reset')}
+                title="По размеру экрана"
+              >
+                {Math.round(zoomDisplay * 100)}%
+              </div>
+              <button onClick={() => handleZoom('in')} className="p-2.5 hover:bg-white/10 rounded-xl transition-all text-slate-400 hover:text-white group" title="Приблизить">
+                <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" strokeWidth={2.5} />
+              </button>
+            </div>
           </main>
         </div>
 

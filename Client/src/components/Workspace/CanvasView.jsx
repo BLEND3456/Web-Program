@@ -1,11 +1,11 @@
 import React, { useRef } from 'react';
 import { useFabric } from '../../hooks/useFabric';
 
-const CanvasView = React.memo(({ width = 1200, height = 1700 }) => {
-  const containerRef = useRef(null);
+const CanvasView = React.memo(({ width = 1200, height = 1700, containerRef: externalContainerRef }) => {
+  const internalContainerRef = useRef(null);
+  const containerRef = externalContainerRef || internalContainerRef;
   const canvasRef = useRef(null);
 
-  // Передаем containerRef в хук для расчета зума и скролла
   useFabric(canvasRef, containerRef, width, height);
 
   return (

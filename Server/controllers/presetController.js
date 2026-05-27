@@ -6,7 +6,7 @@ exports.getAllProjects = async (req, res) => {
   try {
     const projects = await Project.findAll({
       where: { userId: req.userId },
-      attributes: ['id', 'name', 'width', 'height', 'createdAt', 'updatedAt']
+      attributes: ['id', 'name', 'width', 'height', 'previewUrl', 'createdAt', 'updatedAt']
     });
     res.json(projects);
   } catch (err) {
@@ -22,7 +22,6 @@ exports.getProjectById = async (req, res) => {
     
     if (!project) return res.status(404).json({ message: 'Проект не найден' });
     
-    // Отправляем проект целиком, включая designSettings
     res.json(project);
   } catch (err) {
     res.status(500).json({ message: 'Ошибка сервера', error: err.message });
@@ -36,7 +35,7 @@ exports.createProject = async (req, res) => {
     let designSettings = null;
     if (presetId) {
       const preset = await DesignPreset.findByPk(presetId);
-      if (preset) {
+      if (preset && preset.isPublic) {
         designSettings = preset.designSettings;
       }
     }
@@ -45,7 +44,8 @@ exports.createProject = async (req, res) => {
       name,
       width: parseInt(width),
       height: parseInt(height),
-      designSettings, // ИСПРАВЛЕНО: используем designSettings
+      designSettings,
+      previewUrl: null,
       userId: req.userId
     });
     res.status(201).json(project);
@@ -61,10 +61,12 @@ exports.saveProject = async (req, res) => {
     });
     if (!project) return res.status(404).json({ message: 'Проект не найден' });
 
-    // ИСПРАВЛЕНО: принимаем designSettings из тела запроса
-    const { name, designSettings } = req.body;
+    const { name, designSettings, previewUrl } = req.body;
     if (name !== undefined) project.name = name;
     if (designSettings !== undefined) project.designSettings = designSettings;
+    if (previewUrl !== undefined && previewUrl !== null && previewUrl !== '') {
+      project.previewUrl = previewUrl;
+    }
 
     await project.save();
     res.json(project);
@@ -92,7 +94,7 @@ exports.getAllPresets = async (req, res) => {
   try {
     const presets = await DesignPreset.findAll({
       where: { isPublic: true },
-      attributes: ['id', 'name', 'description', 'thumbnail', 'designSettings']
+      attributes: ['id', 'name', 'description', 'thumbnail']
     });
     res.json(presets);
   } catch (err) {
@@ -103,7 +105,9 @@ exports.getAllPresets = async (req, res) => {
 exports.getPresetById = async (req, res) => {
   try {
     const preset = await DesignPreset.findByPk(req.params.id);
-    if (!preset) return res.status(404).json({ message: 'Пресет не найден' });
+    if (!preset || !preset.isPublic) {
+      return res.status(404).json({ message: 'Пресет не найден' });
+    }
     res.json(preset);
   } catch (err) {
     res.status(500).json({ message: 'Ошибка сервера', error: err.message });
@@ -125,25 +129,5 @@ exports.createPreset = async (req, res) => {
     res.status(201).json(preset);
   } catch (err) {
     res.status(500).json({ message: 'Ошибка сервера', error: err.message });
-  }
-};
-
-exports.updateProject = async (req, res) => {
-  try {
-    const { id } = req.params;
-    // Бэкенд должен доставать именно designSettings
-    const { designSettings } = req.body; 
-
-    const project = await Project.findByPk(id);
-    if (!project) return res.status(404).json({ message: 'Проект не найден' });
-
-    // Сохраняем данные в базу
-    project.designSettings = designSettings;
-    await project.save();
-
-    res.json(project);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка при сохранении проекта' });
   }
 };

@@ -23,7 +23,7 @@ const LoginForm = ({ onForgotPassword }) => {
         setError('Токен не получен от сервера');
       }
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Ошибка входа');
+      setError(err.message || 'Ошибка входа');
     }
   };
 

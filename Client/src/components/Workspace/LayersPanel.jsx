@@ -142,11 +142,7 @@ const LayersPanel = () => {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      {/* Шапка панели слоев */}
-      <div className="p-4 border-b border-white/5 text-xs font-bold text-slate-400">Слои</div>
-      
-      {/* Контейнер самого списка слоев с ограничением высоты и автоскроллом */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar max-h-[40vh] p-2 space-y-1 select-none px-1">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1 select-none px-1">
         {userLayers.length === 0 ? (
           <div className="text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-10">Слоев пока нет</div>
         ) : (

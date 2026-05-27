@@ -25,6 +25,10 @@ const Project = sequelize.define('Project', {
     type: DataTypes.JSONB,
     allowNull: true
   },
+  previewUrl: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
   userId: {
     type: DataTypes.INTEGER,
     allowNull: false

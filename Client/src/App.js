@@ -16,7 +16,6 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
-  const isAuthenticated = !!localStorage.getItem('token'); // ⚠️ Вычисляется ОДИН раз при загрузке сайта!
   return (
     <Router>
       <Routes>

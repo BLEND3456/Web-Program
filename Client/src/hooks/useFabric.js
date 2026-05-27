@@ -159,6 +159,8 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
     };
     canvas.on('object:modified', handleObjectModified);
 
+
+    
     // --- НАПРАВЛЯЮЩИЕ, МАГНИТЫ И ДИНАМИЧЕСКИЕ ГРАНИЦЫ ---
     const snapZone = 8; 
     const margin = 60; 
@@ -175,7 +177,16 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
       });
     };
 
-    canvas.on('object:moving', (e) => {
+    const resetHistory = () => {
+      if (!canvas) return;
+      isHandlingHistory.current = true;
+      const json = JSON.stringify(canvas.toJSON(['isGridLine', 'excludeFromExport', 'isGuideLine']));
+      historyStack.current = [json];
+      historyIndex.current = 0;
+      isHandlingHistory.current = false;
+    };
+
+    const handleObjectMoving = (e) => {
       const obj = e.target;
       if (!obj) return;
 
@@ -246,12 +257,18 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
 
       obj.setCoords();
       canvas.renderAll();
-    });
+    };
 
-    canvas.on('mouse:up', () => {
+    const handleMouseUp = () => {
       canvas.getObjects().filter(o => o.isGuideLine).forEach(o => canvas.remove(o));
       canvas.renderAll();
-    });
+    };
+
+    canvas.on('object:moving', handleObjectMoving);
+    canvas.on('mouse:up', handleMouseUp);
+    canvas.on('project:loaded', resetHistory);
+
+    setTimeout(() => resetHistory(), 150);
 
     return () => {
       canvas.off('selection:created', handleSelection);
@@ -260,7 +277,10 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
       canvas.off('object:modified', handleObjectModified);
       canvas.off('object:added', saveState);
       canvas.off('object:removed', saveState);
-      window.removeEventListener('keydown', handleKeyDown); 
+      canvas.off('object:moving', handleObjectMoving);
+      canvas.off('mouse:up', handleMouseUp);
+      canvas.off('project:loaded', resetHistory);
+      window.removeEventListener('keydown', handleKeyDown);
       canvas.dispose();
       initRef.current = false;
       clearTimeout(saveTimeout.current);
@@ -299,7 +319,10 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
         
         const zoomStep = 0.1; 
         const direction = e.deltaY > 0 ? -1 : 1;
-        let newScale = currentScale * (1 + direction * zoomStep);
+        
+        // ИСПРАВЛЕНО: Теперь хук всегда читает реальный масштаб с холста!
+        const activeScale = canvas.getZoom(); 
+        let newScale = activeScale * (1 + direction * zoomStep);
 
         if (newScale < 0.1) newScale = 0.1;
         if (newScale > 5) newScale = 5;
@@ -309,18 +332,17 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
         const mouseXOnCanvas = e.clientX - canvasRect.left;
         const mouseYOnCanvas = e.clientY - canvasRect.top;
 
-        const originalX = mouseXOnCanvas / currentScale;
-        const originalY = mouseYOnCanvas / currentScale;
+        // ИСПРАВЛЕНО: Делим на activeScale вместо устаревшего currentScale
+        const originalX = mouseXOnCanvas / activeScale;
+        const originalY = mouseYOnCanvas / activeScale;
 
-        currentScale = newScale;
-
-        canvas.setZoom(currentScale);
-        canvas.setWidth(width * currentScale);
-        canvas.setHeight(height * currentScale);
+        canvas.setZoom(newScale);
+        canvas.setWidth(width * newScale);
+        canvas.setHeight(height * newScale);
         canvas.renderAll();
 
-        const newMouseXOnCanvas = originalX * currentScale;
-        const newMouseYOnCanvas = originalY * currentScale;
+        const newMouseXOnCanvas = originalX * newScale;
+        const newMouseYOnCanvas = originalY * newScale;
 
         container.scrollLeft += (newMouseXOnCanvas - mouseXOnCanvas);
         container.scrollTop += (newMouseYOnCanvas - mouseYOnCanvas);

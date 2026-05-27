@@ -85,13 +85,17 @@ const CreateFileModal = ({ isOpen, onClose, onConfirm }) => {
 const DashboardPage = () => {
   const navigate = useNavigate();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createError, setCreateError] = useState(null);
 
   const handleLogout = () => { localStorage.removeItem('token'); navigate('/login'); };
   const handleConfirmCreate = async (data) => {
+    setCreateError(null);
     try {
       const newProject = await projectsAPI.create(data);
       navigate(`/editor/${newProject.id}`);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      setCreateError(err.message || 'Не удалось создать проект');
+    }
   };
 
   return (
@@ -141,9 +145,15 @@ const DashboardPage = () => {
         </div>
       </main>
 
+      {createError && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[300] px-5 py-3 rounded-2xl bg-rose-950/90 text-rose-200 border border-rose-500/30 text-sm font-medium">
+          {createError}
+        </div>
+      )}
+
       <CreateFileModal 
         isOpen={isCreateModalOpen} 
-        onClose={() => setIsCreateModalOpen(false)} 
+        onClose={() => { setIsCreateModalOpen(false); setCreateError(null); }} 
         onConfirm={handleConfirmCreate}
       />
     </div>

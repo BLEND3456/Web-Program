@@ -25,7 +25,7 @@ const RegisterForm = ({ onSuccess }) => {
       await authAPI.register(name, email, password);
       onSuccess(); 
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Ошибка при регистрации');
+      setError(err.message || 'Ошибка при регистрации');
     }
   };
 

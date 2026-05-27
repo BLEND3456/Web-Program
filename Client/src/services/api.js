@@ -54,8 +54,21 @@ export const projectsAPI = {
   }),
   save: (id, data) => request(`/presets/projects/${id}`, {
     method: 'PUT',
-    body: JSON.stringify(data), // Ожидает { designSettings: ... }
+    body: JSON.stringify(data),
   }),
+  /** Только превью при уходе из редактора (keepalive, без тяжёлого designSettings) */
+  savePreviewOnLeave: (id, { name, previewUrl }) => {
+    const token = localStorage.getItem('token');
+    return fetch(`${BASE_URL}/presets/projects/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify({ name, previewUrl }),
+      keepalive: true,
+    });
+  },
   delete: (id) => request(`/presets/projects/${id}`, { method: 'DELETE' }),
 };
 
@@ -79,8 +92,11 @@ export const exportAPI = {
     };
     
     return fetch(url, { method: 'POST', headers })
-      .then(res => {
-        if (!res.ok) throw new Error('Ошибка экспорта');
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || 'Ошибка экспорта');
+        }
         return res.blob();
       })
       .then(blob => {

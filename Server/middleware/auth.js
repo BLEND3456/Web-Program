@@ -1,7 +1,5 @@
 const jwt = require('jsonwebtoken');
-
-// ТВОЙ КЛЮЧ УЖЕ ВСТАВЛЕН
-const JWT_SECRET = 'bc9e55fbfafe238874d194714507e02b0dd10f9c83a62dbc8b6d364cfe6d4944';
+const { JWT_SECRET } = require('../config/jwt');
 
 module.exports = (req, res, next) => {
   const authHeader = req.headers.authorization;

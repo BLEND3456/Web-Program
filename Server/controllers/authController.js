@@ -1,9 +1,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { Op } = require('sequelize');
-const bcrypt = require('bcryptjs'); // Импортируем оператор OR
-
-const JWT_SECRET = 'bc9e55fbfafe238874d194714507e02b0dd10f9c83a62dbc8b6d364cfe6d4944';
+const bcrypt = require('bcryptjs');
+const { JWT_SECRET } = require('../config/jwt');
 
 const generateToken = (userId) => {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });

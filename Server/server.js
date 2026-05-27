@@ -1,5 +1,9 @@
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+
 const app = require('./app.js');
 const sequelize = require('./config/db');
+const { ensureProjectsPreviewUrlColumn } = require('./utils/ensureSchema');
 
 // Обязательно импортируем модели для синхронизации
 const User = require('./models/User');
@@ -16,10 +20,10 @@ const PORT = process.env.PORT || 4000;
 sequelize.authenticate()
   .then(() => {
     console.log('PostgreSQL подключена успешно');
-    // Используем force: true ТОЛЬКО ОДИН РАЗ, если таблицы не создаются. 
-    // После успешного входа верните alter: true
-    return sequelize.sync({ alter: true }); // <--- ВОТ ЭТА СТРОЧКА!
+    const syncOptions = process.env.NODE_ENV === 'production' ? {} : { alter: true };
+    return sequelize.sync(syncOptions);
   })
+  .then(() => ensureProjectsPreviewUrlColumn())
   .then(() => {
     app.listen(PORT, () => {
       console.log(`Сервер запущен и слушает порт ${PORT}`);

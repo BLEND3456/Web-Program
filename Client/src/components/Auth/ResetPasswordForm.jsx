@@ -19,7 +19,7 @@ const ResetPasswordForm = ({ onSuccess, onCancel }) => {
       await authAPI.resetPassword(name, email, newPassword);
       onSuccess('Пароль успешно изменен! Теперь вы можете войти.');
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Ошибка сброса пароля');
+      setError(err.message || 'Ошибка сброса пароля');
     }
   };
 

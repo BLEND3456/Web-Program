@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { FileText } from 'lucide-react';
 import { projectsAPI } from '../../services/api';
 
 const DeleteModal = ({ isOpen, onClose, onConfirm }) => {
@@ -21,23 +22,58 @@ const DeleteModal = ({ isOpen, onClose, onConfirm }) => {
   );
 };
 
+const ProjectCardPreview = ({ project }) => {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [project.previewUrl, project.id]);
+
+  if (!project.previewUrl || failed) {
+    return (
+      <FileText
+        className="w-12 h-12 text-slate-500 opacity-40"
+        strokeWidth={1.5}
+      />
+    );
+  }
+
+  return (
+    <img
+      src={project.previewUrl}
+      alt={project.name}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="w-full h-full object-contain rounded-xl bg-white opacity-95 group-hover:opacity-100 group-hover:scale-[1.02] transition-all duration-500"
+    />
+  );
+};
+
 const ProjectList = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [projectIdToDelete, setProjectIdToDelete] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
 
-  useEffect(() => { 
+  useEffect(() => {
+    let cancelled = false;
     const fetchProjects = async () => {
+      setLoading(true);
       try {
         const data = await projectsAPI.getAll();
-        setProjects(data);
-      } catch (err) { console.error(err); } 
-      finally { setLoading(false); }
+        if (!cancelled) setProjects(data);
+      } catch (err) {
+        if (!cancelled) console.error(err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
-    fetchProjects(); 
-  }, []);
+    fetchProjects();
+    return () => { cancelled = true; };
+  }, [location.pathname, location.key]);
 
   const openDelete = (e, id) => {
     e.stopPropagation();
@@ -46,54 +82,61 @@ const ProjectList = () => {
   };
 
   const confirmDelete = async () => {
+    setDeleteError(null);
     try {
       await projectsAPI.delete(projectIdToDelete);
       setProjects(projects.filter(p => p.id !== projectIdToDelete));
       setIsDeleteModalOpen(false);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      setDeleteError(err.message || 'Не удалось удалить проект');
+      setIsDeleteModalOpen(false);
+    }
   };
 
-  if (loading) return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-      {[1,2,3].map(i => <div key={i} className="aspect-[1.1] bg-white/5 rounded-[3rem] animate-pulse"></div>)}
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+        {[1, 2, 3].map(i => <div key={i} className="aspect-[1.1] bg-white/5 rounded-[3rem] animate-pulse" />)}
+      </div>
+    );
+  }
 
   return (
     <>
+      {deleteError && (
+        <div className="mb-6 px-5 py-3 rounded-2xl bg-rose-950/90 text-rose-200 border border-rose-500/30 text-sm font-medium">
+          {deleteError}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
         {projects.map((project) => (
-          <div 
+          <div
             key={project.id}
             onClick={() => navigate(`/editor/${project.id}`)}
             className="group relative bg-[#111113] border border-white/5 rounded-[3rem] p-7 hover:bg-[#161618] hover:border-white/10 transition-all duration-500 cursor-pointer shadow-2xl shadow-black/50"
           >
-            {/* ИСПРАВЛЕНО: Теперь здесь выводится реальный эскиз верстки холста */}
-            <div className="aspect-[1.1] bg-[#09090b] rounded-[2rem] mb-7 overflow-hidden relative flex items-center justify-center ring-1 ring-white/5 shadow-inner">
-               {project.previewUrl ? (
-                 <img 
-                   src={project.previewUrl} 
-                   alt={project.name} 
-                   className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700"
-                 />
-               ) : (
-                 <span className="text-5xl opacity-10 group-hover:scale-125 group-hover:opacity-20 transition-all duration-700">📄</span>
-               )}
-               
-               {/* ОВЕРЛЕЙ КНОПОК ПРИ НАВЕДЕНИИ */}
-               <div className="absolute inset-0 bg-indigo-950/40 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px] flex flex-col items-center justify-center gap-3">
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); navigate(`/export/${project.id}`); }}
-                    className="bg-white text-indigo-950 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-transform"
-                  >
-                    Экспорт PDF
-                  </button>
-                  <button onClick={(e) => openDelete(e, project.id)} className="text-rose-400/60 hover:text-rose-400 text-[10px] font-bold uppercase tracking-widest mt-2">Удалить</button>
-               </div>
+            <div className="aspect-[1.1] bg-[#1a1a1e] rounded-[2rem] mb-7 overflow-hidden relative flex items-center justify-center ring-1 ring-white/10 shadow-inner">
+              <ProjectCardPreview project={project} />
+
+              <div className="absolute inset-0 bg-indigo-950/40 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px] flex flex-col items-center justify-center gap-3 pointer-events-none group-hover:pointer-events-auto">
+                <button
+                  onClick={(e) => { e.stopPropagation(); navigate(`/export/${project.id}`); }}
+                  className="pointer-events-auto bg-white text-indigo-950 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-transform"
+                >
+                  Экспорт PDF
+                </button>
+                <button
+                  onClick={(e) => openDelete(e, project.id)}
+                  className="pointer-events-auto text-rose-400/60 hover:text-rose-400 text-[10px] font-bold uppercase tracking-widest mt-2"
+                >
+                  Удалить
+                </button>
+              </div>
             </div>
             <div className="px-1">
               <h3 className="text-xl font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors truncate">
-                Проект "{project.name || 'Без названия'}"
+                Проект &quot;{project.name || 'Без названия'}&quot;
               </h3>
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Газетный макет</p>
               <p className="text-[10px] font-mono text-slate-600 font-bold tracking-tighter italic mt-1">

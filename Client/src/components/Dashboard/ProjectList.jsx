@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FileText } from 'lucide-react';
 import { projectsAPI } from '../../services/api';
+import { getCachedProjectPreview } from '../../utils/projectPreview';
 
 const DeleteModal = ({ isOpen, onClose, onConfirm }) => {
   if (!isOpen) return null;
@@ -23,13 +24,14 @@ const DeleteModal = ({ isOpen, onClose, onConfirm }) => {
 };
 
 const ProjectCardPreview = ({ project }) => {
+  const src = project.previewUrl || getCachedProjectPreview(project.id);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     setFailed(false);
-  }, [project.previewUrl, project.id]);
+  }, [src, project.id]);
 
-  if (!project.previewUrl || failed) {
+  if (!src || failed) {
     return (
       <FileText
         className="w-12 h-12 text-slate-500 opacity-40"
@@ -40,7 +42,7 @@ const ProjectCardPreview = ({ project }) => {
 
   return (
     <img
-      src={project.previewUrl}
+      src={src}
       alt={project.name}
       loading="lazy"
       onError={() => setFailed(true)}

@@ -14,6 +14,7 @@ router.use(auth);
 router.get('/projects', presetController.getAllProjects);
 router.get('/projects/:id', presetController.getProjectById);
 router.post('/projects', presetController.createProject);
+router.patch('/projects/:id/preview', presetController.saveProjectPreview);
 router.put('/projects/:id', presetController.saveProject);
 router.delete('/projects/:id', presetController.deleteProject);
 

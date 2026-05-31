@@ -75,6 +75,33 @@ exports.saveProject = async (req, res) => {
   }
 };
 
+/** Только превью — лёгкий запрос без тяжёлого designSettings */
+exports.saveProjectPreview = async (req, res) => {
+  try {
+    const project = await Project.findOne({
+      where: { id: req.params.id, userId: req.userId }
+    });
+    if (!project) return res.status(404).json({ message: 'Проект не найден' });
+
+    const { name, previewUrl } = req.body;
+    if (!previewUrl || typeof previewUrl !== 'string') {
+      return res.status(400).json({ message: 'previewUrl обязателен' });
+    }
+
+    if (name !== undefined) project.name = name;
+    project.previewUrl = previewUrl;
+
+    await project.save();
+    res.json({
+      id: project.id,
+      name: project.name,
+      previewUrl: project.previewUrl
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сохранения превью', error: err.message });
+  }
+};
+
 exports.deleteProject = async (req, res) => {
   try {
     const project = await Project.findOne({

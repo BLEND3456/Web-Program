@@ -56,19 +56,11 @@ export const projectsAPI = {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
-  /** Только превью при уходе из редактора (keepalive, без тяжёлого designSettings) */
-  savePreviewOnLeave: (id, { name, previewUrl }) => {
-    const token = localStorage.getItem('token');
-    return fetch(`${BASE_URL}/presets/projects/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
+  savePreview: (id, { name, previewUrl }) =>
+    request(`/presets/projects/${id}/preview`, {
+      method: 'PATCH',
       body: JSON.stringify({ name, previewUrl }),
-      keepalive: true,
-    });
-  },
+    }),
   delete: (id) => request(`/presets/projects/${id}`, { method: 'DELETE' }),
 };
 

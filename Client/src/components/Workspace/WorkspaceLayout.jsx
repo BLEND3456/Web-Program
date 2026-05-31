@@ -6,7 +6,11 @@ import CanvasView from './CanvasView';
 import PropertyPanel from './PropertyPanel';
 import LayersPanel from './LayersPanel';
 import { projectsAPI, designPresetsAPI } from '../../services/api';
-import { captureCanvasPreview } from '../../utils/projectPreview';
+import {
+  captureCanvasPreview,
+  cacheProjectPreview,
+  CANVAS_JSON_PROPS
+} from '../../utils/projectPreview';
 import { Pencil, Minus, Plus } from 'lucide-react';
 
 // --- ВЕРХНЯЯ СТРОКА НАСТРОЕК (CONTEXT BAR) ---
@@ -146,22 +150,39 @@ const WorkspaceInner = () => {
     leaveSaveRef.current = { id, projectTitle, canvas, projectSize };
   }, [id, projectTitle, canvas, projectSize]);
 
-  const savePreview = async () => {
-    if (!canvas || !id || id === 'undefined') return;
-    const previewUrl = await captureCanvasPreview(canvas, projectSize.width, projectSize.height);
-    if (!previewUrl) return;
+  const persistProject = async ({ withPreview = true, name = projectTitle } = {}) => {
+    if (!canvas || !id || id === 'undefined') return { previewUrl: null };
+
+    const designSettings = canvas.toJSON(CANVAS_JSON_PROPS);
+    let previewUrl = null;
+
+    if (withPreview) {
+      previewUrl = captureCanvasPreview(canvas, projectSize.width, projectSize.height);
+      if (previewUrl) {
+        cacheProjectPreview(id, previewUrl);
+        try {
+          await projectsAPI.savePreview(id, { name, previewUrl });
+        } catch (previewErr) {
+          console.warn('savePreview:', previewErr);
+        }
+      }
+    }
+
     await projectsAPI.save(id, {
-      name: projectTitle,
-      designSettings: canvas.toJSON(),
-      previewUrl
+      name,
+      designSettings,
+      ...(previewUrl && { previewUrl })
     });
+
+    return { previewUrl };
   };
 
   const goToDashboard = async () => {
     try {
-      await savePreview();
-    } catch {
-      /* не блокируем выход */
+      await persistProject({ withPreview: true });
+    } catch (err) {
+      console.error(err);
+      showNotification(err.message || 'Не удалось сохранить перед выходом', 'error');
     }
     navigate('/dashboard');
   };
@@ -245,14 +266,9 @@ const WorkspaceInner = () => {
     setIsEditingTitle(false);
     const newTitle = editTitleValue.trim() || 'Без названия';
     if (newTitle !== projectTitle) {
-      setProjectTitle(newTitle);
       try {
-        const previewUrl = await captureCanvasPreview(canvas, projectSize.width, projectSize.height);
-        await projectsAPI.save(id, {
-          name: newTitle,
-          designSettings: canvas.toJSON(),
-          ...(previewUrl && { previewUrl })
-        });
+        await persistProject({ withPreview: true, name: newTitle });
+        setProjectTitle(newTitle);
         showNotification('Название обновлено', 'success');
       } catch (err) { showNotification('Ошибка сохранения названия', 'error'); }
     }
@@ -262,12 +278,7 @@ const WorkspaceInner = () => {
     if (!canvas || !id || id === 'undefined') return showNotification('Ошибка ID', 'error');
     setIsSaving(true);
     try {
-      const previewUrl = await captureCanvasPreview(canvas, projectSize.width, projectSize.height);
-      await projectsAPI.save(id, {
-        name: projectTitle,
-        designSettings: canvas.toJSON(),
-        ...(previewUrl && { previewUrl })
-      });
+      const { previewUrl } = await persistProject({ withPreview: true });
       showNotification(
         previewUrl ? 'Проект успешно сохранен' : 'Сохранено (добавьте элементы на холст для превью)',
         'success'

@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import WorkspaceLayout from './components/Workspace/WorkspaceLayout';
@@ -17,6 +18,7 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
+    <ThemeProvider>
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -38,6 +40,7 @@ function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Router>
+    </ThemeProvider>
   );
 }
 

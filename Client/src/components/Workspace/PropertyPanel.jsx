@@ -40,10 +40,10 @@ const PropertyPanel = () => {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4 bg-[#09090b] border-b border-white/5 max-h-[50vh] overflow-y-auto custom-scrollbar select-none animate-in fade-in duration-200">
+    <div className="flex flex-col gap-4 p-4 bg-app-bg border-b border-app-border max-h-[50vh] overflow-y-auto custom-scrollbar select-none animate-in fade-in duration-200">
       
       {/* ОКНО ВЫБОРА ЦВЕТА (Интерактивный блок а-ля Photoshop Color) */}
-      <div className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl space-y-4">
+      <div className="bg-white/[0.02] border border-app-border p-4 rounded-2xl space-y-4">
         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Палитра спектра</span>
         
         {/* Визуальная градиентная матрица */}
@@ -75,7 +75,7 @@ const PropertyPanel = () => {
       </div>
 
       {/* СВОТЧИ (Быстрые заготовки цветов, как в Photoshop Swatches) */}
-      <div className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl">
+      <div className="bg-white/[0.02] border border-app-border p-4 rounded-2xl">
         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3 block">Образцы (Swatches)</span>
         <div className="grid grid-cols-6 gap-2">
           {swatches.map((color) => (
@@ -91,7 +91,7 @@ const PropertyPanel = () => {
       </div>
 
       {/* ПОЛЗУНОК НЕПРОЗРАЧНОСТИ */}
-      <div className="bg-white/[0.02] border border-white/5 p-4 rounded-2xl">
+      <div className="bg-white/[0.02] border border-app-border p-4 rounded-2xl">
         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3 block">Непрозрачность слоя</span>
         <div className="flex items-center gap-4">
           <input 

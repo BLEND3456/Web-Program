@@ -157,7 +157,7 @@ const LayersPanel = () => {
             const objId = getObjectId(obj);
             const isEditing = editingLayerId === objId;
 
-            let borderClasses = 'border-white/5';
+            let borderClasses = 'border-app-border';
             let bgClasses = 'bg-white/[0.02]';
             
             if (isSelected) {

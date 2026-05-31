@@ -9,7 +9,7 @@ const CanvasView = React.memo(({ width = 1200, height = 1700, containerRef: exte
   useFabric(canvasRef, containerRef, width, height);
 
   return (
-    <div className="flex-1 h-full w-full bg-[#121214] z-10 relative">
+    <div className="flex-1 h-full w-full bg-app-canvas z-10 relative">
       {/* Контейнер, который мы реально скроллим и зумим. 
         Мы вешаем ref сюда, чтобы JS управлял прокруткой.
       */}

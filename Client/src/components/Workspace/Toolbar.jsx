@@ -233,7 +233,7 @@ const Toolbar = () => {
   };
 
   return (
-    <div className="flex flex-col gap-2 p-3 bg-[#09090b] border-r border-white/5 max-h-[calc(100vh-3rem)] overflow-y-auto custom-scrollbar select-none w-full items-center">
+    <div className="flex flex-col gap-2 p-3 bg-app-bg border-r border-app-border max-h-[calc(100vh-3rem)] overflow-y-auto custom-scrollbar select-none w-full items-center">
       
       {/* ГРУППА 1: УПРАВЛЕНИЕ СЕТКОЙ */}
       <button onClick={toggleGrid} className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-all group w-12 h-12 flex items-center justify-center" title="Сетка (Направляющие)">
@@ -304,7 +304,7 @@ const Toolbar = () => {
          ========================================== */}
       {confirmConfig && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[9999]">
-          <div className="bg-[#09090b] border border-white/10 p-6 rounded-2xl w-[340px] shadow-2xl animate-in fade-in zoom-in-95 duration-200 text-left">
+          <div className="bg-app-bg border border-white/10 p-6 rounded-2xl w-[340px] shadow-2xl animate-in fade-in zoom-in-95 duration-200 text-left">
             <div className="flex items-center gap-2.5 mb-3">
               <span className="text-base">⚠️</span>
               <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide">Подтверждение</h3>
@@ -316,7 +316,7 @@ const Toolbar = () => {
               <button
                 type="button"
                 onClick={() => setConfirmConfig(null)}
-                className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-[11px] uppercase tracking-wider text-slate-300 border border-white/5 transition-all"
+                className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-[11px] uppercase tracking-wider text-slate-300 border border-app-border transition-all"
               >
                 Отмена
               </button>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useWorkspace } from '../../context/WorkspaceContext';
+import { forEachSelectedObject } from '../../utils/canvasSelection';
 
 const toHexColor = (color) => {
   if (!color || typeof color !== 'string') return '#000000';
@@ -28,20 +29,35 @@ const PropertyPanel = () => {
     '#ab47bc', '#ec407a', '#26a69a', '#78909c', '#d4af37', '#8d6e63'
   ];
 
+  const isMultiSelection = selectedObject?.type === 'activeSelection';
+  const selectionCount = isMultiSelection ? selectedObject.getObjects().length : selectedObject ? 1 : 0;
+
   useEffect(() => {
     if (!selectedObject) return;
-    const sync = () => {
-      setFill(toHexColor(selectedObject.fill || '#000000'));
-      setOpacity(selectedObject.opacity !== undefined ? selectedObject.opacity : 1);
+    const syncFrom = (obj) => {
+      setFill(toHexColor(obj.fill || '#000000'));
+      setOpacity(obj.opacity !== undefined ? obj.opacity : 1);
     };
-    sync();
-    selectedObject.on('modified', sync);
-    return () => selectedObject.off('modified', sync);
-  }, [selectedObject]);
+    if (isMultiSelection) {
+      const first = selectedObject.getObjects()[0];
+      if (first) syncFrom(first);
+      return;
+    }
+    syncFrom(selectedObject);
+    selectedObject.on('modified', () => syncFrom(selectedObject));
+    return () => selectedObject.off('modified');
+  }, [selectedObject, isMultiSelection]);
 
   const update = (key, value) => {
     if (!selectedObject || !canvas) return;
-    selectedObject.set(key, value);
+    forEachSelectedObject(canvas, selectedObject, (obj) => obj.set(key, value));
+    canvas.renderAll();
+  };
+
+  const removeSelected = () => {
+    if (!selectedObject || !canvas) return;
+    forEachSelectedObject(canvas, selectedObject, (obj) => canvas.remove(obj));
+    canvas.discardActiveObject();
     canvas.renderAll();
   };
 
@@ -56,7 +72,11 @@ const PropertyPanel = () => {
 
   return (
     <div className="flex flex-col gap-4 p-4 bg-app-bg border-b border-app-border max-h-[50vh] overflow-y-auto custom-scrollbar select-none animate-in fade-in duration-200">
-      
+      {isMultiSelection && (
+        <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 text-center">
+          Выбрано объектов: {selectionCount}
+        </p>
+      )}
       {/* ОКНО ВЫБОРА ЦВЕТА (Интерактивный блок а-ля Photoshop Color) */}
       <div className="bg-white/[0.02] border border-app-border p-4 rounded-2xl space-y-4">
         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Палитра спектра</span>
@@ -127,10 +147,10 @@ const PropertyPanel = () => {
 
       {/* КНОПКА БЫСТРОГО УДАЛЕНИЯ */}
       <button 
-        onClick={() => { canvas.remove(selectedObject); canvas.discardActiveObject(); canvas.renderAll(); }}
+        onClick={removeSelected}
         className="w-full py-3.5 bg-rose-500/5 hover:bg-rose-500/10 text-rose-400 border border-rose-500/10 hover:border-rose-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all mt-2"
       >
-        Удалить элемент
+        {isMultiSelection ? 'Удалить выбранные' : 'Удалить элемент'}
       </button>
 
     </div>

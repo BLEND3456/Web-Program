@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { WorkspaceProvider, useWorkspace } from '../../context/WorkspaceContext';
 import Toolbar from './Toolbar';
@@ -9,10 +10,12 @@ import { projectsAPI, designPresetsAPI } from '../../services/api';
 import {
   captureCanvasPreview,
   cacheProjectPreview,
-  CANVAS_JSON_PROPS
+  canvasToDesignSettings,
+  loadDesignOntoCanvas,
 } from '../../utils/projectPreview';
 import { Pencil, Minus, Plus } from 'lucide-react';
 import ThemeToggle from '../UI/ThemeToggle';
+import ImagePlaceholderHandler from './ImagePlaceholderHandler';
 import { useAppSettings } from '../../context/AppSettingsContext';
 
 // --- ВЕРХНЯЯ СТРОКА НАСТРОЕК (CONTEXT BAR) ---
@@ -68,10 +71,9 @@ const ContextBar = () => {
   return (
     <div className="h-12 border border-app-border bg-app-bg flex items-center px-4 gap-6 text-xs text-app-muted select-none z-10 rounded-xl mt-2 mx-2 shadow-lg">
       {!isText ? (
-        <div className="flex items-center gap-2.5 text-app-muted font-medium bg-app-hover border border-app-border px-3 py-1.5 rounded-xl shadow-inner ml-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-600 animate-pulse"></span>
+        <p className="ml-2 text-app-muted font-medium">
           Выделите текстовый элемент для настройки параметров типографики
-        </div>
+        </p>
       ) : (
         <div className="flex items-center gap-6 animate-in fade-in duration-200">
           <div className="flex items-center gap-2 pr-4 border-r border-app-border-strong text-app-text font-bold tracking-wider uppercase text-[10px]">
@@ -127,10 +129,9 @@ const ContextBar = () => {
 
 // --- ОСНОВНОЙ КОМПОНЕНТ РАБОЧЕЙ ОБЛАСТИ ---
 const WorkspaceInner = () => {
-  const [projectSize, setProjectSize] = useState({ width: 1200, height: 1700 });
   const { id } = useParams();
   const navigate = useNavigate();
-  const { canvas } = useWorkspace();
+  const { canvas, pageSize, setPageSize } = useWorkspace();
   const { settings } = useAppSettings();
   
   const [showPresetModal, setShowPresetModal] = useState(false);
@@ -146,22 +147,61 @@ const WorkspaceInner = () => {
   // УБРАЛИ ДУБЛИКАТЫ:
   const [toast, setToast] = useState(null);
   const canvasContainerRef = useRef(null);
-  const leaveSaveRef = useRef({ id, projectTitle, canvas, projectSize });
+  const leaveSaveRef = useRef({ id, projectTitle, canvas, pageSize: pageSize });
   const [zoomDisplay, setZoomDisplay] = useState(1);
+  const sidebarRef = useRef(null);
+  const isResizingSidebarRef = useRef(false);
+  const [colorPanelRatio, setColorPanelRatio] = useState(() => {
+    const saved = localStorage.getItem('workspace_layers_split');
+    const parsed = saved ? parseFloat(saved) : 0.6;
+    return Number.isFinite(parsed) ? Math.min(0.85, Math.max(0.15, parsed)) : 0.6;
+  });
 
   useEffect(() => {
-    leaveSaveRef.current = { id, projectTitle, canvas, projectSize };
-  }, [id, projectTitle, canvas, projectSize]);
+    const onMove = (e) => {
+      if (!isResizingSidebarRef.current || !sidebarRef.current) return;
+      const rect = sidebarRef.current.getBoundingClientRect();
+      const ratio = (e.clientY - rect.top) / rect.height;
+      setColorPanelRatio(Math.min(0.85, Math.max(0.15, ratio)));
+    };
+    const onUp = () => {
+      if (!isResizingSidebarRef.current) return;
+      isResizingSidebarRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      setColorPanelRatio((current) => {
+        localStorage.setItem('workspace_layers_split', String(current));
+        return current;
+      });
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
+
+  const startSidebarResize = (e) => {
+    e.preventDefault();
+    isResizingSidebarRef.current = true;
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  useEffect(() => {
+    leaveSaveRef.current = { id, projectTitle, canvas, pageSize: pageSize };
+  }, [id, projectTitle, canvas, pageSize]);
 
   useEffect(() => {
     if (!settings.autosave || !canvas || !id || id === 'undefined') return;
     const timer = setInterval(async () => {
-      const { id: pid, projectTitle: title, canvas: c } = leaveSaveRef.current;
+      const { id: pid, projectTitle: title, canvas: c, pageSize: ps } = leaveSaveRef.current;
       if (!c || !pid || pid === 'undefined') return;
       try {
         await projectsAPI.save(pid, {
           name: title,
-          designSettings: c.toJSON(CANVAS_JSON_PROPS),
+          designSettings: canvasToDesignSettings(c, ps.width, ps.height),
         });
       } catch (err) {
         console.warn('autosave:', err);
@@ -188,11 +228,11 @@ const WorkspaceInner = () => {
   const persistProject = async ({ withPreview = true, name = projectTitle } = {}) => {
     if (!canvas || !id || id === 'undefined') return { previewUrl: null };
 
-    const designSettings = canvas.toJSON(CANVAS_JSON_PROPS);
+    const designSettings = canvasToDesignSettings(canvas, pageSize.width, pageSize.height);
     let previewUrl = null;
 
     if (withPreview) {
-      previewUrl = captureCanvasPreview(canvas, projectSize.width, projectSize.height);
+      previewUrl = captureCanvasPreview(canvas, pageSize.width, pageSize.height);
       if (previewUrl) {
         cacheProjectPreview(id, previewUrl);
       }
@@ -220,11 +260,12 @@ const WorkspaceInner = () => {
   useEffect(() => {
     if (!canvas) return;
     const syncZoom = () => setZoomDisplay(canvas.getZoom());
-    syncZoom(); 
-    window.addEventListener('wheel', syncZoom);
+    syncZoom();
+    const container = canvasContainerRef.current;
+    container?.addEventListener('canvas-zoom', syncZoom);
     window.addEventListener('resize', syncZoom);
     return () => {
-      window.removeEventListener('wheel', syncZoom);
+      container?.removeEventListener('canvas-zoom', syncZoom);
       window.removeEventListener('resize', syncZoom);
     };
   }, [canvas]);
@@ -239,16 +280,18 @@ const WorkspaceInner = () => {
       const container = canvasContainerRef.current;
       const availableWidth = container.clientWidth - 80;
       const availableHeight = container.clientHeight - 80;
-      newZoom = Math.min(availableWidth / projectSize.width, availableHeight / projectSize.height);
+      newZoom = Math.min(availableWidth / pageSize.width, availableHeight / pageSize.height);
     }
     if (newZoom < 0.1) newZoom = 0.1;
     if (newZoom > 5) newZoom = 5;
 
     canvas.setZoom(newZoom);
-    canvas.setWidth(projectSize.width * newZoom);
-    canvas.setHeight(projectSize.height * newZoom);
+    canvas.setWidth(pageSize.width * newZoom);
+    canvas.setHeight(pageSize.height * newZoom);
     canvas.renderAll();
     setZoomDisplay(newZoom);
+    canvasContainerRef.current?.dispatchEvent(new CustomEvent('canvas-layout'));
+    canvasContainerRef.current?.dispatchEvent(new CustomEvent('canvas-zoom'));
   };
 
   useEffect(() => {
@@ -266,17 +309,16 @@ const WorkspaceInner = () => {
         if (cancelled) return;
 
         setProjectTitle(data.name || 'Без названия');
+        const pageW = data.width || pageSize.width;
+        const pageH = data.height || pageSize.height;
         if (data.width && data.height) {
-          setProjectSize({ width: data.width, height: data.height });
+          setPageSize({ width: data.width, height: data.height });
         }
 
         if (data.designSettings) {
-          canvas.clear();
-          canvas.loadFromJSON(data.designSettings, () => {
-            if (cancelled) return;
-            canvas.renderAll();
-            canvas.fire('project:loaded');
-          });
+          await loadDesignOntoCanvas(canvas, data.designSettings, pageW, pageH);
+          if (cancelled) return;
+          canvas.fire('project:loaded');
         } else {
           canvas.fire('project:loaded');
         }
@@ -322,10 +364,10 @@ const WorkspaceInner = () => {
     if (!canvas || !presetForm.name.trim()) return;
     setIsCreatingPreset(true);
     try {
-      const thumbnail = captureCanvasPreview(canvas, projectSize.width, projectSize.height);
+      const thumbnail = captureCanvasPreview(canvas, pageSize.width, pageSize.height);
       await designPresetsAPI.create({
         ...presetForm,
-        designSettings: canvas.toJSON(CANVAS_JSON_PROPS),
+        designSettings: canvasToDesignSettings(canvas, pageSize.width, pageSize.height),
         ...(thumbnail && { thumbnail })
       });
       showNotification('Пресет успешно создан', 'success');
@@ -338,6 +380,16 @@ const WorkspaceInner = () => {
   const showNotification = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const goToExport = async () => {
+    if (!id || id === 'undefined') return;
+    try {
+      await persistProject({ withPreview: true });
+      navigate(`/export/${id}`, { state: { from: 'editor' } });
+    } catch (err) {
+      showNotification(err.message || 'Не удалось сохранить перед экспортом', 'error');
+    }
   };
 
   return (
@@ -363,7 +415,7 @@ const WorkspaceInner = () => {
 
         <div className="flex items-center gap-3">
           <ThemeToggle />
-          <button onClick={() => id && id !== 'undefined' && navigate(`/export/${id}`, { state: { from: 'editor' } })} className="px-5 py-2 hover:bg-app-hover rounded-xl text-xs font-semibold text-app-text-secondary border border-transparent hover:border-app-border">Экспорт PDF</button>
+          <button onClick={goToExport} className="px-5 py-2 hover:bg-app-hover rounded-xl text-xs font-semibold text-app-text-secondary border border-transparent hover:border-app-border">Экспорт PDF</button>
           <button onClick={() => setShowPresetModal(true)} className="px-5 py-2 hover:bg-app-hover rounded-xl text-xs font-semibold text-app-text-secondary border border-transparent hover:border-app-border">Создать пресет</button>
           <button onClick={onSaveProject} disabled={isSaving} className="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 px-6 py-2 rounded-xl text-xs font-semibold transition-all">
             {isSaving ? 'Сохранение...' : 'Сохранить'}
@@ -376,10 +428,10 @@ const WorkspaceInner = () => {
           <Toolbar />
         </aside>
 
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
           <ContextBar />
-          <main className="flex-1 relative bg-app-canvas flex items-center justify-center overflow-hidden z-0">
-            <div className="absolute inset-0 opacity-40 canvas-grid-pattern" />
+          <main className="flex-1 relative min-h-0 bg-app-canvas overflow-hidden">
+            <div className="absolute inset-0 opacity-40 canvas-grid-pattern pointer-events-none" />
             {settings.showRulers && (
               <>
                 <div className="absolute top-0 left-0 right-0 h-7 bg-app-bg/90 border-b border-app-border z-20 pointer-events-none flex items-end px-2 gap-8">
@@ -396,54 +448,75 @@ const WorkspaceInner = () => {
                 <div className="absolute left-1/2 top-0 bottom-0 w-px bg-sky-500/50 z-10 pointer-events-none" />
               </>
             )}
-            <CanvasView width={projectSize.width} height={projectSize.height} containerRef={canvasContainerRef} />
-            
-            {/* Панель масштабирования */}
-            <div className="absolute bottom-8 right-8 flex items-center gap-1 bg-app-bg/90 backdrop-blur-xl border border-app-border-strong rounded-2xl shadow-2xl p-1.5 z-50 text-app-text-secondary select-none animate-in fade-in duration-500">
-              <button onClick={() => handleZoom('out')} className="p-2.5 hover:bg-app-hover-strong rounded-xl transition-all text-app-muted hover:text-app-text group" title="Отдалить">
-                <Minus className="w-4 h-4 group-hover:scale-110 transition-transform" strokeWidth={2.5} />
-              </button>
-              <div 
-                className="w-16 text-center text-[11px] font-black uppercase tracking-wider cursor-pointer hover:bg-app-hover py-2.5 rounded-xl hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors" 
-                onClick={() => handleZoom('reset')}
-                title="По размеру экрана"
-              >
-                {Math.round(zoomDisplay * 100)}%
-              </div>
-              <button onClick={() => handleZoom('in')} className="p-2.5 hover:bg-app-hover-strong rounded-xl transition-all text-app-muted hover:text-app-text group" title="Приблизить">
-                <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" strokeWidth={2.5} />
-              </button>
-            </div>
+            <CanvasView width={pageSize.width} height={pageSize.height} containerRef={canvasContainerRef} />
           </main>
         </div>
 
-        <aside className="w-[320px] bg-app-bg border-l border-app-border flex flex-col z-10">
-          <div className="flex flex-col shrink-0 h-[60%] border-b border-app-border">
-            <div className="px-5 py-3 border-b border-app-border bg-app-bg sticky top-0 z-10">
+        <aside ref={sidebarRef} className="w-[320px] bg-app-bg border-l border-app-border flex flex-col min-h-0 z-10">
+          <div
+            className="flex flex-col min-h-0 overflow-hidden"
+            style={{ height: `${colorPanelRatio * 100}%`, flexShrink: 0 }}
+          >
+            <div className="px-5 py-3 border-b border-app-border bg-app-bg sticky top-0 z-10 shrink-0">
               <h2 className="text-[10px] font-bold tracking-widest uppercase text-app-muted flex items-center gap-2">
                 <span className="text-xs">🎨</span> ЦВЕТ И ОФОРМЛЕНИЕ
               </h2>
             </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-5"><PropertyPanel /></div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-5 min-h-0"><PropertyPanel /></div>
           </div>
 
-          <div className="flex-1 flex flex-col min-h-0 bg-app-bg">
-            <div className="px-5 py-3 border-b border-app-border bg-app-bg sticky top-0 z-10">
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Изменить размер панели слоёв"
+            onMouseDown={startSidebarResize}
+            className="shrink-0 h-2 flex items-center justify-center cursor-row-resize group z-20 border-y border-app-border hover:border-indigo-500/40 hover:bg-indigo-500/10 active:bg-indigo-500/20 transition-colors"
+            title="Потяните, чтобы изменить высоту панели «Слои»"
+          >
+            <div className="w-10 h-1 rounded-full bg-app-border-strong group-hover:bg-indigo-500/60 transition-colors" />
+          </div>
+
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-app-bg">
+            <div className="px-5 py-3 border-b border-app-border bg-app-bg sticky top-0 z-10 shrink-0">
               <h2 className="text-[10px] font-bold tracking-widest uppercase text-app-muted flex items-center gap-2">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h7" /></svg>
                 Слои
               </h2>
             </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-5"><LayersPanel /></div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-5 min-h-0"><LayersPanel /></div>
           </div>
         </aside>
 
         {toast && (
-          <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 px-5 py-3 rounded-2xl border backdrop-blur-xl font-medium text-[13px] flex items-center gap-3 ${toast.type === 'success' ? 'bg-app-surface/95 text-app-text border-indigo-500/30' : 'bg-rose-50 dark:bg-rose-950/90 text-rose-700 dark:text-rose-200 border-rose-200 dark:border-rose-500/30'}`}>
+          <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 px-5 py-3 rounded-2xl border shadow-2xl font-medium text-[13px] flex items-center gap-3 z-[100] ${toast.type === 'success' ? 'bg-app-surface text-app-text border-indigo-500/40' : 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-200 border-rose-200 dark:border-rose-500/30'}`}>
             {toast.message}
           </div>
         )}
       </div>
+
+      {typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed bottom-8 flex items-center gap-1 bg-app-bg/95 backdrop-blur-xl border border-app-border-strong rounded-2xl shadow-2xl p-1.5 z-[9999] text-app-text-secondary select-none pointer-events-auto"
+          style={{ right: 'calc(320px + 2rem)' }}
+        >
+          <button onClick={() => handleZoom('out')} className="p-2.5 hover:bg-app-hover-strong rounded-xl transition-all text-app-muted hover:text-app-text group" title="Отдалить">
+            <Minus className="w-4 h-4 group-hover:scale-110 transition-transform" strokeWidth={2.5} />
+          </button>
+          <div
+            className="w-16 text-center text-[11px] font-black uppercase tracking-wider cursor-pointer hover:bg-app-hover py-2.5 rounded-xl hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+            onClick={() => handleZoom('reset')}
+            title="По размеру экрана"
+          >
+            {Math.round(zoomDisplay * 100)}%
+          </div>
+          <button onClick={() => handleZoom('in')} className="p-2.5 hover:bg-app-hover-strong rounded-xl transition-all text-app-muted hover:text-app-text group" title="Приблизить">
+            <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" strokeWidth={2.5} />
+          </button>
+        </div>,
+        document.body
+      )}
+
+      <ImagePlaceholderHandler />
 
       {showPresetModal && (
         <div className="fixed inset-0 bg-app-overlay backdrop-blur-md flex items-center justify-center z-50">

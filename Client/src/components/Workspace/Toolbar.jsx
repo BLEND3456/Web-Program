@@ -1,13 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useWorkspace } from '../../context/WorkspaceContext';
 import { fabric } from 'fabric';
-import { applyNewspaperTemplate, NEWSPAPER_TEMPLATES } from '../../utils/newspaperTemplates';
+import { buildNewspaperTemplateJSON, NEWSPAPER_TEMPLATES } from '../../utils/newspaperTemplates';
 import { designPresetsAPI } from '../../services/api';
-import {
-  getBuiltinTemplatePreview,
-  getPresetTemplatePreview,
-  cachePresetTemplatePreview
-} from '../../utils/templatePreview';
+import { getBuiltinTemplatePreview, resolvePresetPreview, cachePresetTemplatePreview } from '../../utils/templatePreview';
+import { loadDesignOntoCanvas } from '../../utils/projectPreview';
 import TemplatePreviewThumb from './TemplatePreviewThumb';
 import {
   Grid,
@@ -25,7 +22,7 @@ import {
 const BUILTIN_TEMPLATES = NEWSPAPER_TEMPLATES.filter((t) => t.id !== 'blank');
 
 const Toolbar = () => {
-  const { canvas } = useWorkspace();
+  const { canvas, pageSize } = useWorkspace();
   const [confirmConfig, setConfirmConfig] = useState(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [savedPresets, setSavedPresets] = useState([]);
@@ -68,17 +65,14 @@ const Toolbar = () => {
 
       await Promise.all(
         savedPresets.map(async (preset) => {
-          if (preset.thumbnail) {
-            next[`preset-${preset.id}`] = preset.thumbnail;
-            cachePresetTemplatePreview(preset.id, preset.thumbnail);
-            return;
-          }
-          try {
-            const full = await designPresetsAPI.getById(preset.id);
-            const url = await getPresetTemplatePreview(preset.id, full?.designSettings);
-            if (url) next[`preset-${preset.id}`] = url;
-          } catch {
-            /* skip */
+          const url = await resolvePresetPreview(
+            preset,
+            undefined,
+            (id) => designPresetsAPI.getById(id)
+          );
+          if (url) {
+            next[`preset-${preset.id}`] = url;
+            if (preset.thumbnail) cachePresetTemplatePreview(preset.id, preset.thumbnail);
           }
         })
       );
@@ -138,18 +132,25 @@ const Toolbar = () => {
     canvas.renderAll();
   };
 
+  const loadTemplateJSON = async (json) => {
+    if (!canvas || !json) return;
+    const pageW = pageSize.width;
+    const pageH = pageSize.height;
+    await loadDesignOntoCanvas(canvas, json, pageW, pageH);
+    canvas.fire('canvas:content-replaced');
+  };
+
   const executeApplyBuiltin = (type) => {
-    applyNewspaperTemplate(canvas, type);
+    if (!canvas) return;
+    const json = buildNewspaperTemplateJSON(type, pageSize.width, pageSize.height);
+    if (json) loadTemplateJSON(json);
     setTemplatesOpen(false);
   };
 
   const executeApplySaved = async (presetId) => {
     const preset = await designPresetsAPI.getById(presetId);
     if (!preset?.designSettings || !canvas) return;
-    canvas.clear();
-    canvas.loadFromJSON(preset.designSettings, () => {
-      canvas.renderAll();
-    });
+    loadTemplateJSON(preset.designSettings);
     setTemplatesOpen(false);
   };
 
@@ -362,7 +363,7 @@ const Toolbar = () => {
           </button>
 
           <div
-            className={`absolute left-[calc(100%+4px)] top-0 z-[100] flex w-[300px] max-h-[min(70vh,calc(100vh-10rem))] flex-col rounded-r-2xl border border-app-border border-l-0 bg-app-surface shadow-2xl transition-[transform,opacity] duration-300 ease-in-out origin-left ${
+            className={`absolute left-[calc(100%+4px)] top-0 z-[100] flex w-[300px] h-[min(70vh,calc(100vh-10rem))] max-h-[min(70vh,calc(100vh-10rem))] flex-col overflow-hidden rounded-r-2xl border border-app-border border-l-0 bg-app-surface shadow-2xl transition-[transform,opacity] duration-300 ease-in-out origin-left ${
               templatesOpen
                 ? 'translate-x-0 opacity-100 pointer-events-auto'
                 : '-translate-x-3 opacity-0 pointer-events-none'

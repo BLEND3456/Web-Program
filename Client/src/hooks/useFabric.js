@@ -1,8 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { fabric } from 'fabric';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { applyPageClip } from '../utils/projectPreview';
+import { copyCanvasObjects, pasteCanvasObjects, isCanvasShortcutBlocked, hasCanvasClipboard } from '../utils/canvasClipboard';
 
-export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) => {
+const SCROLL_PAD = 48;
+
+export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700, scrollContentRef = null) => {
   const { setCanvas, updateSelectedObject } = useWorkspace();
   const initRef = useRef(false);
   const canvasInstance = useRef(null);
@@ -30,13 +34,18 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
     const canvas = new fabric.Canvas(canvasRef.current, {
       backgroundColor: '#ffffff',
       preserveObjectStacking: true,
-      selection: false
+      selection: true,
+      selectionColor: 'rgba(79, 70, 229, 0.12)',
+      selectionBorderColor: 'rgba(79, 70, 229, 0.85)',
+      selectionLineWidth: 1.5,
     });
 
     canvasInstance.current = canvas;
     setCanvas(canvas);
 
-    const handleSelection = (e) => updateSelectedObject(e.selected?.[0] || null);
+    const handleSelection = () => {
+      updateSelectedObject(canvas.getActiveObject() || null);
+    };
     const handleCleared = () => updateSelectedObject(null);
 
     canvas.on('selection:created', handleSelection);
@@ -95,17 +104,30 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
     };
 
     // --- ГОРЯЧИЕ КЛАВИШИ ---
-    const handleKeyDown = (e) => {
-      const activeTag = document.activeElement?.tagName?.toLowerCase();
-      if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') return;
+    const handleKeyDown = async (e) => {
+      if (isCanvasShortcutBlocked(canvas)) return;
+
+      const activeObj = canvas.getActiveObject();
+      if (activeObj?.isEditing) return;
       
       if (e.ctrlKey || e.metaKey) {
         if (e.code === 'KeyZ') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
         if (e.code === 'KeyY') { e.preventDefault(); redo(); return; }
+        if (e.code === 'KeyC') {
+          const copied = copyCanvasObjects(canvas);
+          if (copied) e.preventDefault();
+          return;
+        }
+        if (e.code === 'KeyV') {
+          if (!hasCanvasClipboard()) return;
+          e.preventDefault();
+          const pasted = await pasteCanvasObjects(canvas);
+          if (pasted) updateSelectedObject(canvas.getActiveObject() || null);
+          return;
+        }
       }
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        const activeObj = canvas.getActiveObject();
         if (activeObj && activeObj.isEditing) return;
 
         const activeObjects = canvas.getActiveObjects();
@@ -117,7 +139,7 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
         }
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
 
     // --- МОДИФИКАЦИЯ РАЗМЕРОВ И ДИНАМИЧЕСКИЕ БАРЬЕРЫ КРАЕВ ---
     const handleObjectModified = (e) => {
@@ -267,6 +289,7 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
     canvas.on('object:moving', handleObjectMoving);
     canvas.on('mouse:up', handleMouseUp);
     canvas.on('project:loaded', resetHistory);
+    canvas.on('canvas:content-replaced', resetHistory);
 
     setTimeout(() => resetHistory(), 150);
 
@@ -280,7 +303,8 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
       canvas.off('object:moving', handleObjectMoving);
       canvas.off('mouse:up', handleMouseUp);
       canvas.off('project:loaded', resetHistory);
-      window.removeEventListener('keydown', handleKeyDown);
+      canvas.off('canvas:content-replaced', resetHistory);
+      window.removeEventListener('keydown', handleKeyDown, true);
       canvas.dispose();
       initRef.current = false;
       clearTimeout(saveTimeout.current);
@@ -298,55 +322,108 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
 
     let currentScale = 1;
 
+    const notifyZoom = () => {
+      container.dispatchEvent(new CustomEvent('canvas-zoom'));
+    };
+
+    const syncScrollArea = () => {
+      const c = canvasInstance.current;
+      const content = scrollContentRef?.current;
+      if (!c || !container || !content) return;
+
+      const { width: pageW, height: pageH } = dimensionsRef.current;
+      const zoom = c.getZoom();
+      const displayW = Math.round(pageW * zoom);
+      const displayH = Math.round(pageH * zoom);
+      const pad = SCROLL_PAD;
+      const innerW = displayW + pad * 2;
+      const innerH = displayH + pad * 2;
+
+      const totalW = Math.max(container.clientWidth, innerW);
+      const totalH = Math.max(container.clientHeight, innerH);
+      const zoomedIn = innerH > container.clientHeight + 1;
+
+      content.style.width = `${totalW}px`;
+      content.style.minHeight = `${totalH}px`;
+      content.style.height = `${totalH}px`;
+      content.style.padding = `${pad}px`;
+      content.style.boxSizing = 'border-box';
+      content.style.display = 'flex';
+      content.style.justifyContent = 'center';
+      content.style.alignItems = zoomedIn ? 'flex-start' : 'center';
+    };
+
+    let layoutRaf = null;
+    const scheduleScrollSync = () => {
+      if (layoutRaf) cancelAnimationFrame(layoutRaf);
+      layoutRaf = requestAnimationFrame(() => {
+        syncScrollArea();
+        requestAnimationFrame(syncScrollArea);
+        layoutRaf = null;
+      });
+    };
+
     const fitToScreen = () => {
+      const { width: pageW, height: pageH } = dimensionsRef.current;
       const availableWidth = container.clientWidth - 80;
       const availableHeight = container.clientHeight - 80;
-      
-      currentScale = Math.min(availableWidth / width, availableHeight / height);
+
+      currentScale = Math.min(availableWidth / pageW, availableHeight / pageH);
 
       canvas.setZoom(currentScale);
-      canvas.setWidth(width * currentScale);
-      canvas.setHeight(height * currentScale);
+      canvas.setWidth(pageW * currentScale);
+      canvas.setHeight(pageH * currentScale);
+      applyPageClip(canvas, pageW, pageH);
       canvas.renderAll();
+      scheduleScrollSync();
+      notifyZoom();
     };
 
     fitToScreen(); 
     window.addEventListener('resize', fitToScreen);
 
     const handleWheel = (e) => {
-      if (e.altKey) {
-        e.preventDefault(); 
-        
-        const zoomStep = 0.1; 
-        const direction = e.deltaY > 0 ? -1 : 1;
-        
-        // ИСПРАВЛЕНО: Теперь хук всегда читает реальный масштаб с холста!
-        const activeScale = canvas.getZoom(); 
-        let newScale = activeScale * (1 + direction * zoomStep);
+      const canScroll =
+        container.scrollHeight > container.clientHeight + 1 ||
+        container.scrollWidth > container.clientWidth + 1;
 
-        if (newScale < 0.1) newScale = 0.1;
-        if (newScale > 5) newScale = 5;
-
-        const canvasRect = canvas.wrapperEl.getBoundingClientRect();
-        
-        const mouseXOnCanvas = e.clientX - canvasRect.left;
-        const mouseYOnCanvas = e.clientY - canvasRect.top;
-
-        // ИСПРАВЛЕНО: Делим на activeScale вместо устаревшего currentScale
-        const originalX = mouseXOnCanvas / activeScale;
-        const originalY = mouseYOnCanvas / activeScale;
-
-        canvas.setZoom(newScale);
-        canvas.setWidth(width * newScale);
-        canvas.setHeight(height * newScale);
-        canvas.renderAll();
-
-        const newMouseXOnCanvas = originalX * newScale;
-        const newMouseYOnCanvas = originalY * newScale;
-
-        container.scrollLeft += (newMouseXOnCanvas - mouseXOnCanvas);
-        container.scrollTop += (newMouseYOnCanvas - mouseYOnCanvas);
+      if (!e.altKey) {
+        if (canScroll) {
+          container.scrollTop += e.deltaY;
+          container.scrollLeft += e.deltaX;
+          e.preventDefault();
+        }
+        return;
       }
+
+      e.preventDefault();
+
+      const zoomStep = 0.1;
+      const direction = e.deltaY > 0 ? -1 : 1;
+      const activeScale = canvas.getZoom();
+      let newScale = activeScale * (1 + direction * zoomStep);
+
+      if (newScale < 0.1) newScale = 0.1;
+      if (newScale > 5) newScale = 5;
+
+      const canvasRect = canvas.wrapperEl.getBoundingClientRect();
+      const mouseXOnCanvas = e.clientX - canvasRect.left;
+      const mouseYOnCanvas = e.clientY - canvasRect.top;
+      const originalX = mouseXOnCanvas / activeScale;
+      const originalY = mouseYOnCanvas / activeScale;
+
+      canvas.setZoom(newScale);
+      canvas.setWidth(dimensionsRef.current.width * newScale);
+      canvas.setHeight(dimensionsRef.current.height * newScale);
+      canvas.renderAll();
+
+      const newMouseXOnCanvas = originalX * newScale;
+      const newMouseYOnCanvas = originalY * newScale;
+
+      container.scrollLeft += newMouseXOnCanvas - mouseXOnCanvas;
+      container.scrollTop += newMouseYOnCanvas - mouseYOnCanvas;
+      syncScrollArea();
+      notifyZoom();
     };
 
     let isPanning = false;
@@ -388,19 +465,64 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700) 
       if (e.button === 1 && e.shiftKey) e.preventDefault();
     };
 
-    container.addEventListener('wheel', handleWheel, { passive: false });
+    container.addEventListener('wheel', handleWheel, { passive: false, capture: true });
     container.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
     container.addEventListener('auxclick', disableAuxClick);
+
+    const resetCanvasToPage = () => {
+      const c = canvasInstance.current;
+      if (!c) return;
+      const { width: pageW, height: pageH } = dimensionsRef.current;
+      const zoom = c.getZoom();
+      c.setWidth(pageW * zoom);
+      c.setHeight(pageH * zoom);
+      applyPageClip(c, pageW, pageH);
+      c.renderAll();
+    };
+
+    const onLayout = () => {
+      if (canvas._suppressLayout) return;
+      scheduleScrollSync();
+    };
+
+    const onLayoutNow = () => syncScrollArea();
+
+    const onContentReplaced = () => {
+      resetCanvasToPage();
+      scheduleScrollSync();
+      notifyZoom();
+    };
+
+    const onProjectLoaded = () => {
+      resetCanvasToPage();
+      fitToScreen();
+      syncScrollArea();
+      requestAnimationFrame(syncScrollArea);
+    };
+
+    canvas.on('object:added', onLayout);
+    canvas.on('object:removed', onLayout);
+    canvas.on('object:modified', onLayout);
+    canvas.on('project:loaded', onProjectLoaded);
+    canvas.on('canvas:content-replaced', onContentReplaced);
+    container.addEventListener('canvas-layout', onLayoutNow);
     
     return () => {
+      if (layoutRaf) cancelAnimationFrame(layoutRaf);
+      canvas.off('object:added', onLayout);
+      canvas.off('object:removed', onLayout);
+      canvas.off('object:modified', onLayout);
+      canvas.off('project:loaded', onProjectLoaded);
+      canvas.off('canvas:content-replaced', onContentReplaced);
+      container.removeEventListener('canvas-layout', onLayoutNow);
       window.removeEventListener('resize', fitToScreen);
-      container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('wheel', handleWheel, { capture: true });
       container.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
       container.removeEventListener('auxclick', disableAuxClick);
     };
-  }, [width, height, containerRef]);
+  }, [width, height, containerRef, scrollContentRef]);
 };

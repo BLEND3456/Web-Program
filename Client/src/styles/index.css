@@ -106,6 +106,8 @@ input[type=number] {
 
   .canvas-container {
     outline: none !important;
+    position: relative !important;
+    overflow: hidden !important;
 }
 
 /* На всякий случай гасим фокус на самих внутренних холстах */

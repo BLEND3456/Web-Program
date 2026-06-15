@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { Bookmark } from 'lucide-react';
 import { designPresetsAPI } from '../../services/api';
 import { NEWSPAPER_TEMPLATES } from '../../utils/newspaperTemplates';
-import { getBuiltinTemplatePreview, getPresetTemplatePreview } from '../../utils/templatePreview';
+import { getBuiltinTemplatePreview, resolvePresetPreview, getCardPreviewMaxPx } from '../../utils/templatePreview';
 
 const TemplatesSection = ({ onUseTemplate }) => {
   const [savedPresets, setSavedPresets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [builtinPreviews, setBuiltinPreviews] = useState({});
   const [presetPreviews, setPresetPreviews] = useState({});
+  const [presetPreviewsLoading, setPresetPreviewsLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,10 +30,11 @@ const TemplatesSection = ({ onUseTemplate }) => {
 
   useEffect(() => {
     let cancelled = false;
+    const cardMaxPx = getCardPreviewMaxPx();
     const loadBuiltin = async () => {
       const entries = await Promise.all(
         NEWSPAPER_TEMPLATES.filter((t) => t.id !== 'blank').map(async (tpl) => {
-          const src = await getBuiltinTemplatePreview(tpl.id);
+          const src = await getBuiltinTemplatePreview(tpl.id, cardMaxPx);
           return [tpl.id, src];
         })
       );
@@ -44,14 +46,23 @@ const TemplatesSection = ({ onUseTemplate }) => {
 
   useEffect(() => {
     let cancelled = false;
+    const cardMaxPx = getCardPreviewMaxPx();
     const loadPresets = async () => {
+      setPresetPreviewsLoading(true);
       const entries = await Promise.all(
         savedPresets.map(async (preset) => {
-          const src = preset.thumbnail || (await getPresetTemplatePreview(preset.id, preset.designSettings));
+          const src = await resolvePresetPreview(
+            preset,
+            cardMaxPx,
+            (id) => designPresetsAPI.getById(id)
+          );
           return [preset.id, src];
         })
       );
-      if (!cancelled) setPresetPreviews(Object.fromEntries(entries));
+      if (!cancelled) {
+        setPresetPreviews(Object.fromEntries(entries));
+        setPresetPreviewsLoading(false);
+      }
     };
     if (savedPresets.length) loadPresets();
     else if (!cancelled) setPresetPreviews({});
@@ -64,7 +75,7 @@ const TemplatesSection = ({ onUseTemplate }) => {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="aspect-[1.1] bg-app-hover rounded-[3rem] animate-pulse" />
+          <div key={i} className="aspect-[1.1] bg-app-hover rounded-2xl animate-pulse" />
         ))}
       </div>
     );
@@ -80,14 +91,15 @@ const TemplatesSection = ({ onUseTemplate }) => {
               key={tpl.id}
               type="button"
               onClick={() => onUseTemplate({ templateId: tpl.id })}
-              className="group text-left bg-app-surface border border-app-border rounded-[3rem] p-7 hover:bg-app-elevated hover:border-app-border-strong transition-all duration-500 shadow-xl dark:shadow-black/50"
+              className="group text-left bg-app-surface border border-app-border rounded-2xl p-6 hover:bg-app-elevated hover:border-app-border-strong transition-all duration-500 shadow-xl dark:shadow-black/50"
             >
-              <div className="aspect-[1.1] bg-slate-100 dark:bg-[#1a1a1e] rounded-[2rem] mb-6 overflow-hidden flex items-center justify-center ring-1 ring-app-border-strong">
+              <div className="aspect-[1.1] bg-slate-100 dark:bg-[#1a1a1e] rounded-xl mb-5 overflow-hidden flex items-center justify-center ring-1 ring-app-border-strong">
                 {builtinPreviews[tpl.id] ? (
                   <img
                     src={builtinPreviews[tpl.id]}
                     alt=""
                     className="w-full h-full object-contain rounded-xl bg-white"
+                    decoding="async"
                   />
                 ) : (
                   <div className="w-full h-full animate-pulse bg-app-hover" />
@@ -111,15 +123,18 @@ const TemplatesSection = ({ onUseTemplate }) => {
                 key={preset.id}
                 type="button"
                 onClick={() => onUseTemplate({ presetId: preset.id })}
-                className="group text-left bg-app-surface border border-app-border rounded-[3rem] p-7 hover:bg-app-elevated hover:border-violet-500/30 transition-all duration-500 shadow-xl dark:shadow-black/50"
+                className="group text-left bg-app-surface border border-app-border rounded-2xl p-6 hover:bg-app-elevated hover:border-violet-500/30 transition-all duration-500 shadow-xl dark:shadow-black/50"
               >
-                <div className="aspect-[1.1] bg-slate-100 dark:bg-[#1a1a1e] rounded-[2rem] mb-6 overflow-hidden flex items-center justify-center ring-1 ring-app-border-strong">
+                <div className="aspect-[1.1] bg-slate-100 dark:bg-[#1a1a1e] rounded-xl mb-5 overflow-hidden flex items-center justify-center ring-1 ring-app-border-strong">
                   {presetPreviews[preset.id] ? (
                     <img
                       src={presetPreviews[preset.id]}
                       alt=""
                       className="w-full h-full object-contain rounded-xl bg-white"
+                      decoding="async"
                     />
+                  ) : presetPreviewsLoading ? (
+                    <div className="w-full h-full animate-pulse bg-app-hover" />
                   ) : (
                     <div className="w-12 h-12 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-500">
                       <Bookmark className="w-6 h-6" strokeWidth={1.5} />

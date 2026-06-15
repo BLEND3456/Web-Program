@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useWorkspace } from '../../context/WorkspaceContext';
+import { isObjectInCanvasSelection } from '../../utils/canvasSelection';
 
 const LayersPanel = () => {
   const { canvas, selectedObject, updateSelectedObject } = useWorkspace();
   const [layers, setLayers] = useState([]);
+  const [selectionVersion, setSelectionVersion] = useState(0);
   
   // Состояния для Drag & Drop
   const [draggedIndex, setDraggedIndex] = useState(null);
@@ -25,11 +27,18 @@ const LayersPanel = () => {
     canvas.on('object:added', updateLayers);
     canvas.on('object:removed', updateLayers);
     canvas.on('object:modified', updateLayers);
-    
+    const bumpSelection = () => setSelectionVersion((v) => v + 1);
+    canvas.on('selection:created', bumpSelection);
+    canvas.on('selection:updated', bumpSelection);
+    canvas.on('selection:cleared', bumpSelection);
+
     return () => {
       canvas.off('object:added', updateLayers);
       canvas.off('object:removed', updateLayers);
       canvas.off('object:modified', updateLayers);
+      canvas.off('selection:created', bumpSelection);
+      canvas.off('selection:updated', bumpSelection);
+      canvas.off('selection:cleared', bumpSelection);
     };
   }, [canvas]);
 
@@ -142,12 +151,12 @@ const LayersPanel = () => {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1 select-none px-1">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1 select-none px-1" data-selection={selectionVersion}>
         {userLayers.length === 0 ? (
           <div className="text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-10">Слоев пока нет</div>
         ) : (
           userLayers.map((obj, i) => {
-            const isSelected = selectedObject === obj;
+            const isSelected = isObjectInCanvasSelection(canvas, obj);
             const isDragged = draggedIndex === i;
             const isDragOver = dragOverIndex === i;
             

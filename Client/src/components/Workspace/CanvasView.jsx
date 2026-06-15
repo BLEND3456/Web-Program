@@ -5,22 +5,19 @@ const CanvasView = React.memo(({ width = 1200, height = 1700, containerRef: exte
   const internalContainerRef = useRef(null);
   const containerRef = externalContainerRef || internalContainerRef;
   const canvasRef = useRef(null);
+  const scrollContentRef = useRef(null);
 
-  useFabric(canvasRef, containerRef, width, height);
+  useFabric(canvasRef, containerRef, width, height, scrollContentRef);
 
   return (
-    <div className="flex-1 h-full w-full bg-app-canvas z-10 relative">
-      {/* Контейнер, который мы реально скроллим и зумим. 
-        Мы вешаем ref сюда, чтобы JS управлял прокруткой.
-      */}
+    <div className="absolute inset-0 bg-app-canvas z-0 pointer-events-none">
       <div
         ref={containerRef}
-        className="absolute inset-0 overflow-auto flex custom-scrollbar"
+        className="absolute inset-0 overflow-auto custom-scrollbar pointer-events-auto"
       >
-        {/* m-auto держит холст по центру, когда он маленький, и позволяет скроллить, когда большой */}
-        <div className="m-auto p-12 shrink-0">
-          <div className="relative shadow-[0_0_80px_rgba(0,0,0,0.6)] bg-white rounded-sm select-none">
-            <canvas ref={canvasRef} id="fabric-canvas" />
+        <div ref={scrollContentRef}>
+          <div className="relative shadow-[0_0_80px_rgba(0,0,0,0.6)] bg-white rounded-sm select-none shrink-0 overflow-hidden">
+            <canvas ref={canvasRef} id="fabric-canvas" className="block max-w-none" />
           </div>
         </div>
       </div>

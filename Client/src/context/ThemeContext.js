@@ -8,21 +8,35 @@ export const useTheme = () => {
   return ctx;
 };
 
+const THEME_USER_SET_KEY = 'theme_user_set';
+
 const getStoredTheme = () => {
-  const stored = localStorage.getItem('theme');
-  if (stored === 'light' || stored === 'dark') return stored;
-  return 'dark';
+  if (localStorage.getItem(THEME_USER_SET_KEY) !== '1') {
+    return 'light';
+  }
+  return localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
 };
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(getStoredTheme);
+  const [theme, setThemeState] = useState(getStoredTheme);
+
+  const setTheme = (next) => {
+    localStorage.setItem(THEME_USER_SET_KEY, '1');
+    setThemeState(next);
+  };
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     localStorage.setItem('theme', theme);
+    if (theme === 'light' && localStorage.getItem(THEME_USER_SET_KEY) !== '1') {
+      document.documentElement.classList.remove('dark');
+    }
   }, [theme]);
 
-  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
+  const toggleTheme = () => {
+    localStorage.setItem(THEME_USER_SET_KEY, '1');
+    setThemeState((t) => (t === 'dark' ? 'light' : 'dark'));
+  };
 
   return (
     <ThemeContext.Provider

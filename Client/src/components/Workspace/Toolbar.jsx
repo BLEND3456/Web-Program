@@ -333,13 +333,13 @@ const Toolbar = () => {
       <div className="flex flex-col gap-2 p-3 bg-app-bg select-none w-full items-center overflow-visible">
         <button
           onClick={toggleGrid}
-          className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-all group w-12 h-12 flex items-center justify-center shrink-0"
+          className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 dark:bg-indigo-500/10 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-all group w-12 h-12 flex items-center justify-center shrink-0"
           title="Сетка (Направляющие)"
         >
           <Grid className="w-5 h-5 mx-auto group-hover:scale-110 transition-transform shrink-0" strokeWidth={1.5} />
         </button>
 
-        <div className="h-[1px] w-10 mx-auto bg-white/10 my-2 shrink-0" />
+        <div className="h-[1px] w-10 mx-auto bg-app-border-strong dark:bg-white/10 my-2 shrink-0" />
 
         {/* Кнопка > на месте бывших шаблонных кнопок + выезжающая панель */}
         <div className="relative w-full flex justify-center overflow-visible shrink-0">
@@ -348,8 +348,8 @@ const Toolbar = () => {
             onClick={() => setTemplatesOpen((open) => !open)}
             className={`p-3 rounded-xl border transition-all w-12 h-12 flex items-center justify-center ${
               templatesOpen
-                ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-400'
-                : 'border-app-border bg-app-hover hover:bg-app-hover-strong text-slate-400 hover:text-indigo-400'
+                ? 'bg-indigo-100 border-indigo-300 dark:bg-indigo-500/20 dark:border-indigo-500/40 text-indigo-700 dark:text-indigo-400'
+                : 'border-app-border bg-app-hover hover:bg-app-hover-strong text-app-text-secondary dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'
             }`}
             title={templatesOpen ? 'Свернуть шаблоны' : 'Шаблоны'}
             aria-expanded={templatesOpen}
@@ -436,55 +436,55 @@ const Toolbar = () => {
           </div>
         </div>
 
-        <div className="h-[1px] w-10 mx-auto bg-white/10 my-2 shrink-0" />
+        <div className="h-[1px] w-10 mx-auto bg-app-border-strong dark:bg-white/10 my-2 shrink-0" />
 
         <div className="flex flex-col gap-1 items-center w-full overflow-y-auto custom-scrollbar max-h-[calc(100vh-14rem)]">
-          <button onClick={addHeadline} className="p-3 rounded-xl hover:bg-white/10 text-slate-400 hover:text-indigo-400 transition-all group flex items-center justify-center w-12 h-12" title="Добавить главный заголовок">
+          <button onClick={addHeadline} className="p-3 rounded-xl hover:bg-app-hover-strong dark:hover:bg-white/10 text-app-text-secondary dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all group flex items-center justify-center w-12 h-12" title="Добавить главный заголовок">
             <Type className="w-5 h-5 group-hover:scale-110 transition-transform shrink-0" strokeWidth={1.75} />
           </button>
-          <button onClick={addSubhead} className="p-3 rounded-xl hover:bg-white/10 text-slate-400 hover:text-indigo-400 transition-all group flex items-center justify-center w-12 h-12" title="Добавить подзаголовок колонки">
+          <button onClick={addSubhead} className="p-3 rounded-xl hover:bg-app-hover-strong dark:hover:bg-white/10 text-app-text-secondary dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all group flex items-center justify-center w-12 h-12" title="Добавить подзаголовок колонки">
             <Heading2 className="w-5 h-5 group-hover:scale-110 transition-transform shrink-0" strokeWidth={1.75} />
           </button>
-          <button onClick={addBodyText} className="p-3 rounded-xl hover:bg-white/10 text-slate-400 hover:text-indigo-400 transition-all group flex items-center justify-center w-12 h-12" title="Добавить статью / текстовую колонку">
+          <button onClick={addBodyText} className="p-3 rounded-xl hover:bg-app-hover-strong dark:hover:bg-white/10 text-app-text-secondary dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all group flex items-center justify-center w-12 h-12" title="Добавить статью / текстовую колонку">
             <AlignLeft className="w-5 h-5 group-hover:scale-110 transition-transform shrink-0" strokeWidth={1.75} />
           </button>
 
-          <div className="h-[1px] w-10 mx-auto bg-white/10 my-2 shrink-0" />
+          <div className="h-[1px] w-10 mx-auto bg-app-border-strong dark:bg-white/10 my-2 shrink-0" />
 
-          <button onClick={addRectangle} className="p-3 rounded-xl hover:bg-white/10 text-slate-400 hover:text-indigo-400 transition-all w-12 h-12 flex items-center justify-center group" title="Добавить прямоугольник">
+          <button onClick={addRectangle} className="p-3 rounded-xl hover:bg-app-hover-strong dark:hover:bg-white/10 text-app-text-secondary dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all w-12 h-12 flex items-center justify-center group" title="Добавить прямоугольник">
             <Square className="w-5 h-5 group-hover:scale-110 transition-transform shrink-0" strokeWidth={1.75} />
           </button>
-          <button onClick={addCircle} className="p-3 rounded-xl hover:bg-white/10 text-slate-400 hover:text-indigo-400 transition-all w-12 h-12 flex items-center justify-center group" title="Добавить круг">
+          <button onClick={addCircle} className="p-3 rounded-xl hover:bg-app-hover-strong dark:hover:bg-white/10 text-app-text-secondary dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all w-12 h-12 flex items-center justify-center group" title="Добавить круг">
             <Circle className="w-5 h-5 group-hover:scale-110 transition-transform shrink-0" strokeWidth={1.75} />
           </button>
-          <button onClick={addTriangle} className="p-3 rounded-xl hover:bg-white/10 text-slate-400 hover:text-indigo-400 transition-all w-12 h-12 flex items-center justify-center group" title="Добавить треугольник">
+          <button onClick={addTriangle} className="p-3 rounded-xl hover:bg-app-hover-strong dark:hover:bg-white/10 text-app-text-secondary dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all w-12 h-12 flex items-center justify-center group" title="Добавить треугольник">
             <Triangle className="w-5 h-5 group-hover:scale-110 transition-transform shrink-0" strokeWidth={1.75} />
           </button>
-          <button onClick={addImage} className="p-3 rounded-xl hover:bg-white/10 text-slate-400 hover:text-indigo-400 transition-all w-12 h-12 flex items-center justify-center group" title="Загрузить изображение">
+          <button onClick={addImage} className="p-3 rounded-xl hover:bg-app-hover-strong dark:hover:bg-white/10 text-app-text-secondary dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all w-12 h-12 flex items-center justify-center group" title="Загрузить изображение">
             <Image className="w-5 h-5 group-hover:scale-110 transition-transform shrink-0" strokeWidth={1.75} />
           </button>
 
-          <div className="h-[1px] w-10 mx-auto bg-white/10 my-2 shrink-0" />
+          <div className="h-[1px] w-10 mx-auto bg-app-border-strong dark:bg-white/10 my-2 shrink-0" />
 
-          <button onClick={clearCanvas} className="p-3 rounded-xl hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition-all w-12 h-12 flex items-center justify-center group shrink-0" title="Полностью очистить страницу">
+          <button onClick={clearCanvas} className="p-3 rounded-xl hover:bg-rose-500/20 text-app-muted dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition-all w-12 h-12 flex items-center justify-center group shrink-0" title="Полностью очистить страницу">
             <Trash2 className="w-5 h-5 group-hover:scale-110 transition-transform shrink-0" strokeWidth={1.75} />
           </button>
         </div>
       </div>
 
       {confirmConfig && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[9999]">
-          <div className="bg-app-bg border border-white/10 p-6 rounded-2xl w-[340px] shadow-2xl animate-in fade-in zoom-in-95 duration-200 text-left">
+        <div className="fixed inset-0 bg-app-overlay backdrop-blur-md flex items-center justify-center z-[9999]">
+          <div className="bg-app-surface border border-app-border dark:border-white/10 p-6 rounded-2xl w-[340px] shadow-2xl animate-in fade-in zoom-in-95 duration-200 text-left">
             <div className="flex items-center gap-2.5 mb-3">
               <span className="text-base">⚠️</span>
-              <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide">Подтверждение</h3>
+              <h3 className="text-sm font-bold text-app-text dark:text-slate-200 uppercase tracking-wide">Подтверждение</h3>
             </div>
-            <p className="text-xs text-slate-400 mb-6 leading-relaxed">{confirmConfig.message}</p>
+            <p className="text-xs text-app-text-secondary dark:text-slate-400 mb-6 leading-relaxed">{confirmConfig.message}</p>
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => setConfirmConfig(null)}
-                className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-[11px] uppercase tracking-wider text-slate-300 border border-app-border transition-all"
+                className="flex-1 px-4 py-2.5 bg-app-hover hover:bg-app-hover-strong dark:bg-white/5 dark:hover:bg-white/10 rounded-xl font-bold text-[11px] uppercase tracking-wider text-app-text-secondary dark:text-slate-300 border border-app-border transition-all"
               >
                 Отмена
               </button>

@@ -69,15 +69,15 @@ const ContextBar = () => {
   };
 
   return (
-    <div className="h-12 border border-app-border bg-app-bg flex items-center px-4 gap-6 text-xs text-app-muted select-none z-10 rounded-xl mt-2 mx-2 shadow-lg">
+    <div className="h-12 border border-app-border bg-app-surface dark:bg-app-bg flex items-center px-4 gap-6 text-xs select-none z-10 rounded-xl mt-2 mx-2 shadow-lg">
       {!isText ? (
-        <p className="ml-2 text-app-muted font-medium">
+        <p className="ml-2 text-app-text-secondary font-medium">
           Выделите текстовый элемент для настройки параметров типографики
         </p>
       ) : (
         <div className="flex items-center gap-6 animate-in fade-in duration-200">
           <div className="flex items-center gap-2 pr-4 border-r border-app-border-strong text-app-text font-bold tracking-wider uppercase text-[10px]">
-            <span className="text-indigo-400 text-sm font-serif">T</span> Инструмент Текст
+            <span className="text-indigo-600 dark:text-indigo-400 text-sm font-serif">T</span> Инструмент Текст
           </div>
 
           <div className="flex items-center gap-2">
@@ -409,7 +409,7 @@ const WorkspaceInner = () => {
                 <Pencil className="w-3 h-3 text-app-muted group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors" />
               </div>
             )}
-            <p className="text-[10px] text-indigo-400/80 font-mono tracking-widest mt-0.5">ID: {(!id || id === 'undefined') ? 'ERR' : String(id).slice(-8)}</p>
+            <p className="text-[10px] text-indigo-600/90 dark:text-indigo-400/80 font-mono tracking-widest mt-0.5">ID: {(!id || id === 'undefined') ? 'ERR' : String(id).slice(-8)}</p>
           </div>
         </div>
 
@@ -417,7 +417,7 @@ const WorkspaceInner = () => {
           <ThemeToggle />
           <button onClick={goToExport} className="px-5 py-2 hover:bg-app-hover rounded-xl text-xs font-semibold text-app-text-secondary border border-transparent hover:border-app-border">Экспорт PDF</button>
           <button onClick={() => setShowPresetModal(true)} className="px-5 py-2 hover:bg-app-hover rounded-xl text-xs font-semibold text-app-text-secondary border border-transparent hover:border-app-border">Создать пресет</button>
-          <button onClick={onSaveProject} disabled={isSaving} className="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 px-6 py-2 rounded-xl text-xs font-semibold transition-all">
+          <button onClick={onSaveProject} disabled={isSaving} className="bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 px-6 py-2 rounded-xl text-xs font-semibold transition-all">
             {isSaving ? 'Сохранение...' : 'Сохранить'}
           </button>
         </div>

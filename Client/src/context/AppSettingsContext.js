@@ -3,11 +3,11 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 const STORAGE_KEY = 'app_settings';
 
 const DEFAULT_SETTINGS = {
-  autosave: true,
+  autosave: false,
   autosaveInterval: 60,
   snapToGrid: false,
-  showGuides: true,
-  showRulers: true,
+  showGuides: false,
+  showRulers: false,
   exportFormat: 'pdf',
   exportQuality: 'high',
   embedFonts: true,

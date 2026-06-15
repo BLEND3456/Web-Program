@@ -9,13 +9,14 @@ import {
   authIconBtn
 } from './authFormStyles';
 
-const RegisterForm = ({ onSuccess }) => {
+const RegisterForm = ({ onSuccess, onOpenPrivacy }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
@@ -27,6 +28,9 @@ const RegisterForm = ({ onSuccess }) => {
     if (!emailRegex.test(email)) return setError('Введите корректный email');
     if (password.length < 8) return setError('Пароль должен содержать минимум 8 символов');
     if (password !== confirmPassword) return setError('Пароли не совпадают');
+    if (!privacyAccepted) {
+      return setError('Необходимо согласие с Политикой обработки персональных данных');
+    }
 
     try {
       await authAPI.register(name, email, password);
@@ -67,6 +71,26 @@ const RegisterForm = ({ onSuccess }) => {
           {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
         </button>
       </div>
+
+      <label className="flex items-start gap-3 cursor-pointer group mt-1">
+        <input
+          type="checkbox"
+          checked={privacyAccepted}
+          onChange={(e) => setPrivacyAccepted(e.target.checked)}
+          className="mt-1 w-4 h-4 shrink-0 rounded border-slate-300 dark:border-slate-600 accent-indigo-600 cursor-pointer"
+        />
+        <span className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+          Я ознакомлен и согласен с{' '}
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); onOpenPrivacy?.(); }}
+            className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
+          >
+            Политикой обработки персональных данных
+          </button>
+          {' '}и даю согласие на обработку моих персональных данных.
+        </span>
+      </label>
 
       <button type="submit" className={`${authSubmit} mt-2`}>
         Создать аккаунт

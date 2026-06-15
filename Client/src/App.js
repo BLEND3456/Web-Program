@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import LoginPage from './pages/LoginPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import DashboardPage from './pages/DashboardPage';
 import WorkspaceLayout from './components/Workspace/WorkspaceLayout';
 import ExportPage from './pages/ExportPage';
@@ -22,6 +23,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         
         {/* Оборачиваем защищенные страницы в ProtectedRoute */}
         <Route 

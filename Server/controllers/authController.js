@@ -74,6 +74,68 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
+exports.updateProfile = async (req, res) => {
+  try {
+    const { name } = req.body;
+    const trimmed = typeof name === 'string' ? name.trim() : '';
+
+    if (!trimmed) {
+      return res.status(400).json({ message: 'Имя пользователя обязательно' });
+    }
+    if (trimmed.length < 2) {
+      return res.status(400).json({ message: 'Имя должно быть не менее 2 символов' });
+    }
+
+    const user = await User.findByPk(req.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Пользователь не найден' });
+    }
+
+    if (trimmed !== user.name) {
+      const existing = await User.findOne({ where: { name: trimmed } });
+      if (existing) {
+        return res.status(409).json({ message: 'Это имя уже занято' });
+      }
+      user.name = trimmed;
+      await user.save();
+    }
+
+    res.json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера', error: err.message });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { newPassword, confirmPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 8) {
+      return res.status(400).json({ message: 'Пароль должен быть не менее 8 символов' });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: 'Пароли не совпадают' });
+    }
+
+    const user = await User.findByPk(req.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Пользователь не найден' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    res.json({ message: 'Пароль успешно изменён' });
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера', error: err.message });
+  }
+};
+
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;

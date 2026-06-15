@@ -68,7 +68,19 @@ export const authAPI = {
     request('/auth/reset-password', { 
       method: 'POST', 
       body: JSON.stringify({ name, email, newPassword }) 
-    })
+    }),
+
+  updateProfile: (name) =>
+    request('/auth/profile', {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
+
+  changePassword: (newPassword, confirmPassword) =>
+    request('/auth/profile/password', {
+      method: 'PATCH',
+      body: JSON.stringify({ newPassword, confirmPassword }),
+    }),
 };
 
 // 2. ИСПРАВЛЕННЫЙ БЛОК ПРОЕКТОВ (projectsAPI)

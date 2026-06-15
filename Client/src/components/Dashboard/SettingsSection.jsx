@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAppSettings } from '../../context/AppSettingsContext';
 import { authAPI } from '../../services/api';
-import { ChevronDown, Check } from 'lucide-react';
+import { ChevronDown, Check, Pencil } from 'lucide-react';
 
 const EXPORT_FORMAT_OPTIONS = [
   { value: 'pdf', label: 'PDF' },
@@ -15,6 +15,18 @@ const EXPORT_QUALITY_OPTIONS = [
   { value: 'high', label: 'Высокое' },
   { value: 'max', label: 'Максимальное' },
 ];
+
+const loadStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('user') || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const persistUser = (user) => {
+  localStorage.setItem('user', JSON.stringify(user));
+};
 
 const Section = ({ title, children, danger }) => (
   <section className={`rounded-[2rem] border p-8 ${danger ? 'border-rose-500/30 bg-rose-500/5' : 'border-app-border bg-app-surface'}`}>
@@ -31,9 +43,12 @@ const Row = ({ label, desc, children }) => (
       <p className="text-sm font-semibold text-app-text">{label}</p>
       {desc && <p className="text-xs text-app-muted mt-0.5">{desc}</p>}
     </div>
-    <div className="shrink-0">{children}</div>
+    <div className="shrink-0 w-full sm:w-auto sm:text-right">{children}</div>
   </div>
 );
+
+const fieldClass =
+  'w-full bg-app-hover border border-app-border rounded-xl px-3 py-2.5 text-sm text-app-text outline-none focus:border-indigo-500 transition-colors';
 
 const Toggle = ({ checked, onChange, disabled }) => (
   <button
@@ -106,7 +121,7 @@ const Select = ({ value, onChange, options }) => (
   <DropdownSelect value={value} onChange={onChange} options={options} />
 );
 
-const Btn = ({ children, onClick, variant = 'default', disabled, loading }) => {
+const Btn = ({ children, onClick, variant = 'default', disabled, loading, className = '' }) => {
   const styles = {
     default: 'bg-app-hover hover:bg-app-hover-strong text-app-text border-app-border',
     primary: 'bg-indigo-600 hover:bg-indigo-500 text-white border-transparent',
@@ -117,7 +132,7 @@ const Btn = ({ children, onClick, variant = 'default', disabled, loading }) => {
       type="button"
       onClick={onClick}
       disabled={disabled || loading}
-      className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all disabled:opacity-50 ${styles[variant]}`}
+      className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all disabled:opacity-50 ${styles[variant]} ${className}`}
     >
       {loading ? '…' : children}
     </button>
@@ -126,12 +141,59 @@ const Btn = ({ children, onClick, variant = 'default', disabled, loading }) => {
 
 const SettingsSection = () => {
   const { settings, updateSetting } = useAppSettings();
-  const [user] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
-  });
+  const [user, setUser] = useState(loadStoredUser);
+  const [nameForm, setNameForm] = useState(user.name || '');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameMsg, setNameMsg] = useState('');
+  const [nameLoading, setNameLoading] = useState(false);
   const [pwdForm, setPwdForm] = useState({ newPassword: '', confirm: '' });
   const [pwdMsg, setPwdMsg] = useState('');
   const [pwdLoading, setPwdLoading] = useState(false);
+
+  useEffect(() => {
+    setNameForm(user.name || '');
+  }, [user.name]);
+
+  const startNameEdit = () => {
+    setNameForm(user.name || '');
+    setNameMsg('');
+    setIsEditingName(true);
+  };
+
+  const cancelNameEdit = () => {
+    setNameForm(user.name || '');
+    setIsEditingName(false);
+    setNameMsg('');
+  };
+
+  const handleNameSave = async () => {
+    setIsEditingName(false);
+    setNameMsg('');
+    const trimmed = nameForm.trim();
+    if (!trimmed || trimmed === user.name) {
+      setNameForm(user.name || '');
+      return;
+    }
+    if (trimmed.length < 2) {
+      setNameMsg('Имя должно быть не менее 2 символов');
+      setNameForm(user.name || '');
+      return;
+    }
+    setNameLoading(true);
+    try {
+      const updated = await authAPI.updateProfile(trimmed);
+      const nextUser = { ...user, ...updated };
+      setUser(nextUser);
+      persistUser(nextUser);
+      setNameForm(updated.name);
+      setNameMsg('Имя успешно сохранено');
+    } catch (err) {
+      setNameMsg(err.message || 'Не удалось сохранить имя');
+      setNameForm(user.name || '');
+    } finally {
+      setNameLoading(false);
+    }
+  };
 
   const handlePasswordChange = async () => {
     setPwdMsg('');
@@ -145,7 +207,7 @@ const SettingsSection = () => {
     }
     setPwdLoading(true);
     try {
-      await authAPI.resetPassword(user.name, user.email, pwdForm.newPassword);
+      await authAPI.changePassword(pwdForm.newPassword, pwdForm.confirm);
       setPwdMsg('Пароль успешно изменён');
       setPwdForm({ newPassword: '', confirm: '' });
     } catch (err) {
@@ -158,32 +220,90 @@ const SettingsSection = () => {
   return (
     <div className="max-w-3xl space-y-6 pb-8">
       <Section title="Профиль">
-        <Row label="Имя пользователя">
-          <span className="text-sm text-app-text-secondary font-medium">{user.name || '—'}</span>
-        </Row>
-        <Row label="Email">
-          <span className="text-sm text-app-text-secondary font-medium">{user.email || '—'}</span>
-        </Row>
-        <Row label="Смена пароля" desc="Новый пароль — не менее 8 символов">
-          <div className="flex flex-col gap-2 w-full sm:w-auto sm:min-w-[220px]">
-            <input
-              type="password"
-              placeholder="Новый пароль"
-              value={pwdForm.newPassword}
-              onChange={(e) => setPwdForm((f) => ({ ...f, newPassword: e.target.value }))}
-              className="bg-app-hover border border-app-border rounded-xl px-3 py-2 text-sm text-app-text outline-none focus:border-indigo-500 w-full"
-            />
-            <input
-              type="password"
-              placeholder="Подтвердите пароль"
-              value={pwdForm.confirm}
-              onChange={(e) => setPwdForm((f) => ({ ...f, confirm: e.target.value }))}
-              className="bg-app-hover border border-app-border rounded-xl px-3 py-2 text-sm text-app-text outline-none focus:border-indigo-500 w-full"
-            />
-            <Btn variant="primary" onClick={handlePasswordChange} loading={pwdLoading}>Сохранить</Btn>
-            {pwdMsg && <p className="text-xs text-app-muted">{pwdMsg}</p>}
+        <Row label="Имя пользователя" desc="Отображается как логин в системе">
+          <div className="w-full sm:ml-auto sm:flex sm:flex-col sm:items-end">
+            {isEditingName ? (
+              <input
+                autoFocus
+                type="text"
+                value={nameForm}
+                onChange={(e) => setNameForm(e.target.value)}
+                onBlur={handleNameSave}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleNameSave();
+                  if (e.key === 'Escape') cancelNameEdit();
+                }}
+                disabled={nameLoading}
+                className="bg-app-hover border border-indigo-500/50 rounded-lg px-2 py-1 text-sm font-semibold text-app-text outline-none w-full max-w-[240px] sm:text-right"
+                autoComplete="username"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={startNameEdit}
+                disabled={nameLoading}
+                className="inline-flex items-center gap-2 group disabled:opacity-50"
+                title="Нажмите, чтобы изменить имя"
+              >
+                <span className="text-sm font-semibold text-app-text group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors">
+                  {user.name || '—'}
+                </span>
+                <Pencil className="w-3.5 h-3.5 text-app-muted group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors shrink-0" strokeWidth={2} />
+              </button>
+            )}
+            {nameMsg && (
+              <p className={`text-xs mt-2 sm:text-right ${nameMsg.includes('успешно') ? 'text-emerald-500' : 'text-rose-400 dark:text-rose-300'}`}>
+                {nameMsg}
+              </p>
+            )}
           </div>
         </Row>
+
+        <div className="pt-5 mt-1 border-t border-app-border">
+          <div className="mb-5">
+            <p className="text-sm font-semibold text-app-text">Смена пароля</p>
+            <p className="text-xs text-app-muted mt-1">Новый пароль — не менее 8 символов</p>
+          </div>
+
+          <div className="grid gap-4 max-w-lg">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-app-muted mb-2 block">
+                Новый пароль
+              </label>
+              <input
+                type="password"
+                placeholder="Введите новый пароль"
+                value={pwdForm.newPassword}
+                onChange={(e) => setPwdForm((f) => ({ ...f, newPassword: e.target.value }))}
+                className={fieldClass}
+                autoComplete="new-password"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-app-muted mb-2 block">
+                Подтверждение
+              </label>
+              <input
+                type="password"
+                placeholder="Повторите новый пароль"
+                value={pwdForm.confirm}
+                onChange={(e) => setPwdForm((f) => ({ ...f, confirm: e.target.value }))}
+                className={fieldClass}
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
+              <Btn variant="primary" onClick={handlePasswordChange} loading={pwdLoading}>
+                Сохранить пароль
+              </Btn>
+              {pwdMsg && (
+                <p className={`text-xs ${pwdMsg.includes('успешно') ? 'text-emerald-500' : 'text-rose-400 dark:text-rose-300'}`}>
+                  {pwdMsg}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       </Section>
 
       <Section title="Редактор">

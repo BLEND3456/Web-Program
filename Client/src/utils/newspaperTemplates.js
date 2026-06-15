@@ -1,4 +1,5 @@
 import { fabric } from 'fabric';
+import { addImagePlaceholder, PLACEHOLDER_JSON_PROPS } from './imagePlaceholder';
 
 export const NEWSPAPER_TEMPLATES = [
   { id: 'blank', name: 'Пустой', desc: 'Белый холст' },
@@ -13,7 +14,66 @@ const TEMPLATE_TITLES = {
   minimal: 'ВОСКРЕСНЫЙ ВЫПУСК',
 };
 
-export const applyNewspaperTemplate = (canvas, type) => {
+const BANNER_TEXT =
+  'МЕЖДУНАРОДНЫЙ ОБЗОР ЭКОНОМИЧЕСКИХ И СОЦИАЛЬНЫХ РЕФОРМ НА ТЕКУЩИЙ ГОД';
+
+const DUMMY_TEXT =
+  'Инвесторы по всему миру внимательно следят за колебаниями на финансовых рынках. Макроэкономические показатели сигнализируют о нестабильности, а руководители ведомств заявляют о необходимости гибких реформ.';
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+/** Размер шрифта пропорционален и ширине, и высоте холста */
+const fontSize = (cw, ch, wFactor, hFactor, minPx = 10, maxPx = 220) =>
+  clamp(Math.round(Math.min(cw * wFactor, ch * hFactor)), minPx, maxPx);
+
+/** Оценка высоты Textbox без рендера */
+const estimateTextHeight = (text, width, size, lineHeight = 1.2) => {
+  const charW = size * 0.52;
+  const charsPerLine = Math.max(1, Math.floor(width / charW));
+  const lines = String(text).split('\n').reduce((sum, paragraph) => {
+    const len = paragraph.trim().length || 1;
+    return sum + Math.max(1, Math.ceil(len / charsPerLine));
+  }, 0);
+  return Math.ceil(lines * size * lineHeight);
+};
+
+const addLine = (canvas, x1, y, x2, strokeWidth) => {
+  canvas.add(
+    new fabric.Line([x1, y, x2, y], {
+      stroke: '#111111',
+      strokeWidth,
+      selectable: false,
+      evented: false,
+    })
+  );
+};
+
+const addTextbox = (canvas, text, opts) => {
+  const box = new fabric.Textbox(text, {
+    selectable: true,
+    splitByGrapheme: true,
+    ...opts,
+  });
+  canvas.add(box);
+  return box;
+};
+
+const columnText = (text, left, top, width, size, lineHeight, maxHeight) =>
+  new fabric.Textbox(text, {
+    left,
+    top,
+    width,
+    height: maxHeight,
+    fontFamily: 'Times New Roman',
+    fontSize: size,
+    lineHeight,
+    textAlign: 'justify',
+    originX: 'left',
+    originY: 'top',
+    splitByGrapheme: true,
+  });
+
+export const applyNewspaperTemplate = (canvas, type, pageWidth, pageHeight) => {
   if (!canvas || type === 'blank') {
     canvas?.clear();
     canvas?.setBackgroundColor('#ffffff', canvas.renderAll.bind(canvas));
@@ -23,79 +83,195 @@ export const applyNewspaperTemplate = (canvas, type) => {
   canvas.clear();
   canvas.setBackgroundColor('#ffffff', canvas.renderAll.bind(canvas));
 
-  const cw = canvas.width / canvas.getZoom();
-  const ch = canvas.height / canvas.getZoom();
-  const margin = Math.round(cw * 0.05);
+  const cw = pageWidth ?? canvas.width / canvas.getZoom();
+  const ch = pageHeight ?? canvas.height / canvas.getZoom();
+  const margin = Math.round(Math.min(cw, ch) * 0.04);
+  const innerW = cw - margin * 2;
+  const gapY = Math.round(ch * 0.012);
 
-  const line1Top = Math.round(ch * 0.03);
-  const textTop = Math.round(ch * 0.045);
-  const logoTop = Math.round(ch * 0.065);
-  const line2Top = Math.round(ch * 0.14);
-  const headlineTop = Math.round(ch * 0.155);
-  const subBannerTop = Math.round(ch * 0.225);
-  const contentTop = Math.round(ch * 0.295);
+  const metaSize = fontSize(cw, ch, 0.014, 0.009, 9, 18);
+  const titleSize = fontSize(cw, ch, 0.058, 0.034, 28, 140);
+  const headlineSize = fontSize(cw, ch, 0.048, 0.028, 22, 110);
+  const bannerSize = fontSize(cw, ch, 0.014, 0.011, 9, 20);
+  const bodySize = fontSize(cw, ch, 0.017, 0.012, 9, 18);
+  const captionSize = fontSize(cw, ch, 0.018, 0.013, 10, 20);
 
-  canvas.add(new fabric.Line([margin, line1Top, cw - margin, line1Top], { stroke: '#111111', strokeWidth: Math.max(3, cw * 0.004), selectable: false }));
-  canvas.add(new fabric.Line([margin, line2Top, cw - margin, line2Top], { stroke: '#111111', strokeWidth: Math.max(1, cw * 0.0015), selectable: false }));
+  const thickStroke = Math.max(2, Math.round(Math.min(cw, ch) * 0.003));
+  const thinStroke = Math.max(1, Math.round(Math.min(cw, ch) * 0.0012));
 
-  canvas.add(new fabric.Textbox('☀️ +17°C – +25°C\nМОСКВА, ВОСКРЕСЕНЬЕ', { left: cw - margin, top: textTop, width: Math.round(cw * 0.25), fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.014), fontWeight: 'bold', textAlign: 'right', originX: 'right', originY: 'top' }));
-  canvas.add(new fabric.Textbox('ТОМ XLV № 12\nОСНОВАНА В 1888 г.', { left: margin, top: textTop, width: Math.round(cw * 0.25), fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.014), fontWeight: 'bold', textAlign: 'left', originX: 'left', originY: 'top' }));
+  let y = margin;
 
-  canvas.add(new fabric.Textbox(TEMPLATE_TITLES[type], { left: cw / 2, top: logoTop, width: Math.round(cw * 0.6), fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.062), fontWeight: 'bold', textAlign: 'center', originX: 'center', originY: 'top' }));
-  canvas.add(new fabric.Line([margin, line2Top + Math.round(ch * 0.006), cw - margin, line2Top + Math.round(ch * 0.006)], { stroke: '#111111', strokeWidth: Math.max(3, cw * 0.004), selectable: false }));
+  // Мета-строка
+  const metaH = estimateTextHeight('ТОМ\nОСНОВАНА', innerW * 0.28, metaSize, 1.15);
+  addTextbox(canvas, 'ТОМ XLV № 12\nОСНОВАНА В 1888 г.', {
+    left: margin,
+    top: y,
+    width: Math.round(innerW * 0.28),
+    fontFamily: 'Times New Roman',
+    fontSize: metaSize,
+    fontWeight: 'bold',
+    textAlign: 'left',
+    originX: 'left',
+    originY: 'top',
+  });
+  addTextbox(canvas, '☀️ +17°C – +25°C\nМОСКВА, ВОСКРЕСЕНЬЕ', {
+    left: cw - margin,
+    top: y,
+    width: Math.round(innerW * 0.28),
+    fontFamily: 'Times New Roman',
+    fontSize: metaSize,
+    fontWeight: 'bold',
+    textAlign: 'right',
+    originX: 'right',
+    originY: 'top',
+  });
+  y += metaH + gapY;
 
-  canvas.add(new fabric.Textbox('ГЛАВНЫЕ СОБЫТИЯ НЕДЕЛИ', { left: cw / 2, top: headlineTop, width: cw - margin * 2, fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.052), fontWeight: 'bold', textAlign: 'center', originX: 'center', originY: 'top' }));
+  // Верхняя линия
+  addLine(canvas, margin, y, cw - margin, thinStroke);
+  y += thinStroke + gapY * 1.5;
 
-  const bannerH = Math.round(ch * 0.045);
-  canvas.add(new fabric.Rect({ left: cw / 2, top: subBannerTop, width: cw - margin * 2, height: bannerH, fill: '#111111', originX: 'center', originY: 'top' }));
-  canvas.add(new fabric.Textbox('МЕЖДУНАРОДНЫЙ ОБЗОР ЭКОНОМИЧЕСКИХ И СОЦИАЛЬНЫХ РЕФОРМ НА ТЕКУЩИЙ ГОД', { left: cw / 2, top: subBannerTop + bannerH / 2, width: cw - margin * 2 - 40, fontFamily: 'Arial', fontSize: Math.round(cw * 0.015), fontWeight: 'bold', fill: '#ffffff', textAlign: 'center', originX: 'center', originY: 'center' }));
+  // Название газеты — размер и позиция подстраиваются под текст
+  const titleText = TEMPLATE_TITLES[type];
+  const titleWidth = Math.round(innerW * 0.88);
+  const titleH = estimateTextHeight(titleText, titleWidth, titleSize, 1.1);
+  addTextbox(canvas, titleText, {
+    left: cw / 2,
+    top: y,
+    width: titleWidth,
+    fontFamily: 'Times New Roman',
+    fontSize: titleSize,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    originX: 'center',
+    originY: 'top',
+    lineHeight: 1.1,
+  });
+  y += titleH + gapY * 1.5;
 
-  const dummyText = 'Инвесторы по всему миру внимательно следят за беспрецедентными колебаниями на финансовых рынках, поскольку ключевые макроэкономические показатели сигнализируют о нестабильности. Корректировки процентных ставок, резкие скачки цен на сырьевые товары и новые отчеты о корпоративных доходах сформировали крайне непредсказуемую среду. Руководители ведомств заявляют о необходимости внедрения гибких систем реагирования на вызовы.';
+  // Декоративная двойная линия под названием
+  addLine(canvas, margin, y, cw - margin, thickStroke);
+  y += thickStroke + Math.round(gapY * 0.6);
+  addLine(canvas, margin, y, cw - margin, thinStroke);
+  y += thinStroke + gapY;
+
+  // Подзаголовок
+  const headlineH = estimateTextHeight('ГЛАВНЫЕ СОБЫТИЯ НЕДЕЛИ', innerW, headlineSize, 1.1);
+  addTextbox(canvas, 'ГЛАВНЫЕ СОБЫТИЯ НЕДЕЛИ', {
+    left: cw / 2,
+    top: y,
+    width: innerW,
+    fontFamily: 'Times New Roman',
+    fontSize: headlineSize,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    originX: 'center',
+    originY: 'top',
+    lineHeight: 1.1,
+  });
+  y += headlineH + gapY;
+
+  // Чёрный баннер — высота по тексту, чтобы не обрезался
+  const bannerPad = Math.round(bannerSize * 0.75);
+  const bannerTextW = innerW - bannerPad * 2;
+  const bannerTextH = estimateTextHeight(BANNER_TEXT, bannerTextW, bannerSize, 1.15);
+  const bannerH = Math.max(bannerTextH + bannerPad * 2, Math.round(ch * 0.032));
+
+  canvas.add(
+    new fabric.Rect({
+      left: cw / 2,
+      top: y,
+      width: innerW,
+      height: bannerH,
+      fill: '#111111',
+      originX: 'center',
+      originY: 'top',
+      selectable: false,
+      evented: false,
+    })
+  );
+  addTextbox(canvas, BANNER_TEXT, {
+    left: cw / 2,
+    top: y + bannerH / 2,
+    width: bannerTextW,
+    fontFamily: 'Arial',
+    fontSize: bannerSize,
+    fontWeight: 'bold',
+    fill: '#ffffff',
+    textAlign: 'center',
+    originX: 'center',
+    originY: 'center',
+    lineHeight: 1.15,
+  });
+  y += bannerH + gapY * 1.5;
+
+  const contentTop = y;
+  const bottomMargin = margin;
+  const sectionGap = Math.round(ch * 0.02);
 
   if (type === 'classic') {
-    const photoW = Math.round(cw * 0.56);
-    const photoH = Math.round(ch * 0.28);
-    const gap = Math.round(cw * 0.025);
+    const photoW = Math.round(innerW * 0.56);
+    const photoH = Math.round((ch - contentTop - bottomMargin) * 0.42);
+    const gap = Math.round(innerW * 0.025);
 
-    canvas.add(new fabric.Rect({ left: margin, top: contentTop, width: photoW, height: photoH, fill: '#f1f5f9', stroke: '#cbd5e1', strokeWidth: 2, strokeDashArray: [10, 5], originX: 'left', originY: 'top' }));
-    canvas.add(new fabric.Textbox('🖼️ ГЛАВНОЕ ИЗОБРАЖЕНИЕ\n(Замените кнопкой фото)', { left: margin + photoW / 2, top: contentTop + photoH / 2, width: photoW - 40, fontFamily: 'Arial', fontSize: Math.round(cw * 0.018), fontWeight: 'bold', fill: '#64748b', textAlign: 'center', originX: 'center', originY: 'center' }));
-    canvas.add(new fabric.Textbox(dummyText, { left: margin + photoW + gap, top: contentTop, width: cw - margin * 2 - photoW - gap, fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.0175), lineHeight: 1.3, textAlign: 'justify', originX: 'left', originY: 'top' }));
+    addImagePlaceholder(canvas, margin, contentTop, photoW, photoH, captionSize);
+    canvas.add(
+      columnText(
+        DUMMY_TEXT,
+        margin + photoW + gap,
+        contentTop,
+        innerW - photoW - gap,
+        bodySize,
+        1.3,
+        photoH
+      )
+    );
 
-    const colW = (cw - margin * 2 - gap * 2) / 3;
-    const bottomTop = contentTop + photoH + Math.round(ch * 0.03);
+    const bottomTop = contentTop + photoH + sectionGap;
+    const colW = (innerW - gap * 2) / 3;
+    const colH = ch - bottomTop - bottomMargin;
 
-    canvas.add(new fabric.Textbox(dummyText, { left: margin, top: bottomTop, width: colW, fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.016), lineHeight: 1.25, textAlign: 'justify', originX: 'left', originY: 'top' }));
-    canvas.add(new fabric.Textbox(dummyText, { left: margin + colW + gap, top: bottomTop, width: colW, fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.016), lineHeight: 1.25, textAlign: 'justify', originX: 'left', originY: 'top' }));
-    canvas.add(new fabric.Textbox(dummyText, { left: margin + (colW * 2) + gap * 2, top: bottomTop, width: colW, fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.016), lineHeight: 1.25, textAlign: 'justify', originX: 'left', originY: 'top' }));
+    canvas.add(columnText(DUMMY_TEXT, margin, bottomTop, colW, bodySize, 1.25, colH));
+    canvas.add(columnText(DUMMY_TEXT, margin + colW + gap, bottomTop, colW, bodySize, 1.25, colH));
+    canvas.add(columnText(DUMMY_TEXT, margin + (colW + gap) * 2, bottomTop, colW, bodySize, 1.25, colH));
   } else if (type === 'business') {
-    const photoW = Math.round(cw * 0.56);
-    const photoH = Math.round(ch * 0.28);
-    const gap = Math.round(cw * 0.025);
+    const photoW = Math.round(innerW * 0.56);
+    const photoH = Math.round((ch - contentTop - bottomMargin) * 0.42);
+    const gap = Math.round(innerW * 0.025);
+    const textW = innerW - photoW - gap;
 
-    canvas.add(new fabric.Textbox(dummyText, { left: margin, top: contentTop, width: cw - margin * 2 - photoW - gap, fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.0175), lineHeight: 1.3, textAlign: 'justify', originX: 'left', originY: 'top' }));
-    canvas.add(new fabric.Rect({ left: cw - margin - photoW, top: contentTop, width: photoW, height: photoH, fill: '#f1f5f9', stroke: '#cbd5e1', strokeWidth: 2, strokeDashArray: [10, 5], originX: 'left', originY: 'top' }));
-    canvas.add(new fabric.Textbox('🖼️ ГЛАВНОЕ ИЗОБРАЖЕНИЕ\n(Замените кнопкой фото)', { left: (cw - margin - photoW) + photoW / 2, top: contentTop + photoH / 2, width: photoW - 40, fontFamily: 'Arial', fontSize: Math.round(cw * 0.018), fontWeight: 'bold', fill: '#64748b', textAlign: 'center', originX: 'center', originY: 'center' }));
+    canvas.add(columnText(DUMMY_TEXT, margin, contentTop, textW, bodySize, 1.3, photoH));
+    addImagePlaceholder(canvas, cw - margin - photoW, contentTop, photoW, photoH, captionSize);
 
-    const colW = (cw - margin * 2 - gap) / 2;
-    const bottomTop = contentTop + photoH + Math.round(ch * 0.03);
+    const bottomTop = contentTop + photoH + sectionGap;
+    const colW = (innerW - gap) / 2;
+    const colH = ch - bottomTop - bottomMargin;
 
-    canvas.add(new fabric.Textbox(dummyText, { left: margin, top: bottomTop, width: colW, fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.0165), lineHeight: 1.3, textAlign: 'justify', originX: 'left', originY: 'top' }));
-    canvas.add(new fabric.Textbox(dummyText, { left: margin + colW + gap, top: bottomTop, width: colW, fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.0165), lineHeight: 1.3, textAlign: 'justify', originX: 'left', originY: 'top' }));
+    canvas.add(columnText(DUMMY_TEXT, margin, bottomTop, colW, bodySize, 1.3, colH));
+    canvas.add(columnText(DUMMY_TEXT, margin + colW + gap, bottomTop, colW, bodySize, 1.3, colH));
   } else if (type === 'minimal') {
-    const photoW = cw - margin * 2;
-    const photoH = Math.round(ch * 0.24);
-    const gap = Math.round(cw * 0.018);
+    const photoW = innerW;
+    const photoH = Math.round((ch - contentTop - bottomMargin) * 0.36);
+    const gap = Math.round(innerW * 0.018);
 
-    canvas.add(new fabric.Rect({ left: margin, top: contentTop, width: photoW, height: photoH, fill: '#f1f5f9', stroke: '#cbd5e1', strokeWidth: 2, strokeDashArray: [10, 5], originX: 'left', originY: 'top' }));
-    canvas.add(new fabric.Textbox('🖼️ ШИРОКОФОРМАТНАЯ ПАНОРАМНАЯ ФОТОГРАФИЯ ВЫПУСКА', { left: cw / 2, top: contentTop + photoH / 2, width: photoW - 60, fontFamily: 'Arial', fontSize: Math.round(cw * 0.018), fontWeight: 'bold', fill: '#64748b', textAlign: 'center', originX: 'center', originY: 'center' }));
+    addImagePlaceholder(
+      canvas,
+      margin,
+      contentTop,
+      photoW,
+      photoH,
+      captionSize,
+      '🖼️ ШИРОКОФОРМАТНАЯ ПАНОРАМНАЯ ФОТОГРАФИЯ ВЫПУСКА\n(Нажмите, чтобы вставить ссылку)'
+    );
 
-    const colW = (cw - margin * 2 - gap * 3) / 4;
-    const bottomTop = contentTop + photoH + Math.round(ch * 0.03);
+    const bottomTop = contentTop + photoH + sectionGap;
+    const colW = (innerW - gap * 3) / 4;
+    const colH = ch - bottomTop - bottomMargin;
+    const colFont = fontSize(cw, ch, 0.015, 0.011, 8, 16);
 
-    canvas.add(new fabric.Textbox(dummyText, { left: margin, top: bottomTop, width: colW, fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.0145), lineHeight: 1.2, textAlign: 'justify', originX: 'left', originY: 'top' }));
-    canvas.add(new fabric.Textbox(dummyText, { left: margin + colW + gap, top: bottomTop, width: colW, fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.0145), lineHeight: 1.2, textAlign: 'justify', originX: 'left', originY: 'top' }));
-    canvas.add(new fabric.Textbox(dummyText, { left: margin + (colW * 2) + gap * 2, top: bottomTop, width: colW, fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.0145), lineHeight: 1.2, textAlign: 'justify', originX: 'left', originY: 'top' }));
-    canvas.add(new fabric.Textbox(dummyText, { left: margin + (colW * 3) + gap * 3, top: bottomTop, width: colW, fontFamily: 'Times New Roman', fontSize: Math.round(cw * 0.0145), lineHeight: 1.2, textAlign: 'justify', originX: 'left', originY: 'top' }));
+    for (let i = 0; i < 4; i += 1) {
+      canvas.add(columnText(DUMMY_TEXT, margin + (colW + gap) * i, bottomTop, colW, colFont, 1.2, colH));
+    }
   }
 
   canvas.renderAll();
@@ -107,13 +283,13 @@ export const buildNewspaperTemplateJSON = (type, width, height) => {
   const canvas = new fabric.StaticCanvas(null, { width, height });
   canvas.setDimensions({ width, height });
 
-  applyNewspaperTemplate(canvas, type);
+  applyNewspaperTemplate(canvas, type, width, height);
 
   canvas.getObjects().forEach((obj) => {
     if (obj.styles) obj.styles = {};
   });
 
-  const json = canvas.toJSON(['version', 'objects', 'background']);
+  const json = canvas.toJSON(['version', 'objects', 'background', ...PLACEHOLDER_JSON_PROPS]);
   json.width = width;
   json.height = height;
 

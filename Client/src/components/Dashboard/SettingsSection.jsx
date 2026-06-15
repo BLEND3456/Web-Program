@@ -1,9 +1,20 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTheme } from '../../context/ThemeContext';
+import { useState, useEffect, useRef } from 'react';
 import { useAppSettings } from '../../context/AppSettingsContext';
-import { authAPI, projectsAPI, designPresetsAPI } from '../../services/api';
-import { getTrashIds, clearAllTrashIds } from '../../utils/dashboardStorage';
+import { authAPI } from '../../services/api';
+import { ChevronDown, Check } from 'lucide-react';
+
+const EXPORT_FORMAT_OPTIONS = [
+  { value: 'pdf', label: 'PDF' },
+  { value: 'png', label: 'PNG' },
+  { value: 'jpeg', label: 'JPEG' },
+  { value: 'svg', label: 'SVG' },
+];
+
+const EXPORT_QUALITY_OPTIONS = [
+  { value: 'standard', label: 'Стандартное' },
+  { value: 'high', label: 'Высокое' },
+  { value: 'max', label: 'Максимальное' },
+];
 
 const Section = ({ title, children, danger }) => (
   <section className={`rounded-[2rem] border p-8 ${danger ? 'border-rose-500/30 bg-rose-500/5' : 'border-app-border bg-app-surface'}`}>
@@ -37,16 +48,62 @@ const Toggle = ({ checked, onChange, disabled }) => (
   </button>
 );
 
+const DropdownSelect = ({ value, onChange, options, disabled }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const selected = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative min-w-[160px]">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 bg-app-hover border border-app-border rounded-xl px-3 py-2.5 text-sm text-app-text outline-none focus:border-indigo-500 disabled:opacity-50"
+      >
+        <span className="font-medium">{selected?.label}</span>
+        <ChevronDown className={`w-4 h-4 text-app-muted shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-app-surface border border-app-border-strong rounded-xl shadow-2xl overflow-hidden">
+          {options.map((opt) => {
+            const active = opt.value === value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm text-left transition-colors ${
+                  active
+                    ? 'bg-indigo-500/15 text-indigo-500 dark:text-indigo-400'
+                    : 'text-app-text hover:bg-app-hover'
+                }`}
+              >
+                <span className="font-medium">{opt.label}</span>
+                {active && <Check className="w-4 h-4 shrink-0" strokeWidth={2.5} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Select = ({ value, onChange, options }) => (
-  <select
-    value={value}
-    onChange={(e) => onChange(e.target.value)}
-    className="bg-app-hover border border-app-border rounded-xl px-3 py-2 text-sm text-app-text outline-none focus:border-indigo-500 min-w-[140px]"
-  >
-    {options.map((opt) => (
-      <option key={opt.value} value={opt.value}>{opt.label}</option>
-    ))}
-  </select>
+  <DropdownSelect value={value} onChange={onChange} options={options} />
 );
 
 const Btn = ({ children, onClick, variant = 'default', disabled, loading }) => {
@@ -67,95 +124,14 @@ const Btn = ({ children, onClick, variant = 'default', disabled, loading }) => {
   );
 };
 
-const estimateBytes = (projects, presets) => {
-  let bytes = 0;
-  const add = (val) => {
-    if (!val) return;
-    const s = typeof val === 'string' ? val : JSON.stringify(val);
-    bytes += new Blob([s]).size;
-  };
-  projects.forEach((p) => {
-    add(p.designSettings);
-    add(p.previewUrl);
-    add(p.name);
-  });
-  presets.forEach((p) => {
-    add(p.designSettings);
-    add(p.thumbnail);
-  });
-  for (let i = 0; i < sessionStorage.length; i++) {
-    const key = sessionStorage.key(i);
-    if (key?.startsWith('project_preview_')) {
-      add(sessionStorage.getItem(key));
-    }
-  }
-  return bytes;
-};
-
-const formatMb = (bytes) => `${(bytes / (1024 * 1024)).toFixed(0)} МБ`;
-
-const ConfirmModal = ({ open, title, message, confirmLabel, onClose, onConfirm, loading }) => {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 bg-app-overlay backdrop-blur-md flex items-center justify-center z-[200]">
-      <div className="bg-app-surface border border-app-border p-8 rounded-[2rem] w-[400px] shadow-2xl">
-        <h3 className="text-lg font-bold text-app-text mb-2">{title}</h3>
-        <p className="text-sm text-app-muted mb-6">{message}</p>
-        <div className="flex gap-3">
-          <Btn onClick={onClose}>Отмена</Btn>
-          <Btn variant="danger" onClick={onConfirm} loading={loading}>{confirmLabel}</Btn>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const SettingsSection = ({ onStorageChange }) => {
-  const navigate = useNavigate();
-  const { theme, setTheme } = useTheme();
+const SettingsSection = () => {
   const { settings, updateSetting } = useAppSettings();
-  const [user, setUser] = useState(() => {
+  const [user] = useState(() => {
     try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
   });
-  const [stats, setStats] = useState({ projects: 0, files: 0, trash: 0, usedBytes: 0 });
-  const [loadingStats, setLoadingStats] = useState(true);
   const [pwdForm, setPwdForm] = useState({ newPassword: '', confirm: '' });
   const [pwdMsg, setPwdMsg] = useState('');
   const [pwdLoading, setPwdLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [confirm, setConfirm] = useState(null);
-
-  const STORAGE_LIMIT_MB = 500;
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoadingStats(true);
-      try {
-        const [projects, presets] = await Promise.all([
-          projectsAPI.getAll(),
-          designPresetsAPI.getMine().catch(() => []),
-        ]);
-        if (cancelled) return;
-        const trashCount = getTrashIds().size;
-        const activeProjects = projects.filter((p) => !getTrashIds().has(String(p.id)));
-        setStats({
-          projects: activeProjects.length,
-          files: projects.length + presets.length,
-          trash: trashCount,
-          usedBytes: estimateBytes(projects, presets),
-        });
-      } catch {
-        if (!cancelled) {
-          setStats((s) => ({ ...s, trash: getTrashIds().size }));
-        }
-      } finally {
-        if (!cancelled) setLoadingStats(false);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, [onStorageChange]);
 
   const handlePasswordChange = async () => {
     setPwdMsg('');
@@ -178,73 +154,6 @@ const SettingsSection = ({ onStorageChange }) => {
       setPwdLoading(false);
     }
   };
-
-  const handleClearTrash = async () => {
-    setActionLoading(true);
-    try {
-      const ids = clearAllTrashIds();
-      await Promise.all(ids.map((id) => projectsAPI.delete(id).catch(() => null)));
-      onStorageChange?.();
-      setStats((s) => ({ ...s, trash: 0 }));
-      setConfirm(null);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleCleanUnused = () => {
-    const projectIds = new Set();
-    try {
-      Object.keys(sessionStorage).forEach((key) => {
-        if (key.startsWith('project_preview_')) {
-          const id = key.replace('project_preview_', '');
-          projectIds.add(id);
-        }
-      });
-    } catch { /* */ }
-    projectsAPI.getAll().then((projects) => {
-      const valid = new Set(projects.map((p) => String(p.id)));
-      let removed = 0;
-      projectIds.forEach((id) => {
-        if (!valid.has(id)) {
-          sessionStorage.removeItem(`project_preview_${id}`);
-          removed++;
-        }
-      });
-      setConfirm(null);
-      alert(removed > 0 ? `Удалено кэшированных файлов: ${removed}` : 'Неиспользуемых файлов не найдено');
-    });
-  };
-
-  const handleDeleteAllProjects = async () => {
-    setActionLoading(true);
-    try {
-      const projects = await projectsAPI.getAll();
-      await Promise.all(projects.map((p) => projectsAPI.delete(p.id).catch(() => null)));
-      clearAllTrashIds();
-      onStorageChange?.();
-      setStats({ projects: 0, files: 0, trash: 0, usedBytes: 0 });
-      setConfirm(null);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleLogoutAll = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/login');
-  };
-
-  const handleDeleteAccount = () => {
-    localStorage.clear();
-    sessionStorage.clear();
-    navigate('/login');
-  };
-
-  const usedMb = formatMb(stats.usedBytes);
-  const limitMb = `${STORAGE_LIMIT_MB} МБ`;
-  const usagePct = Math.min(100, (stats.usedBytes / (STORAGE_LIMIT_MB * 1024 * 1024)) * 100);
 
   return (
     <div className="max-w-3xl space-y-6 pb-8">
@@ -274,26 +183,6 @@ const SettingsSection = ({ onStorageChange }) => {
             <Btn variant="primary" onClick={handlePasswordChange} loading={pwdLoading}>Сохранить</Btn>
             {pwdMsg && <p className="text-xs text-app-muted">{pwdMsg}</p>}
           </div>
-        </Row>
-      </Section>
-
-      <Section title="Внешний вид">
-        <Row label="Тёмная тема">
-          <Toggle checked={theme === 'dark'} onChange={(on) => setTheme(on ? 'dark' : 'light')} />
-        </Row>
-        <Row label="Светлая тема">
-          <Toggle checked={theme === 'light'} onChange={(on) => setTheme(on ? 'light' : 'dark')} />
-        </Row>
-        <Row label="Размер интерфейса">
-          <Select
-            value={String(settings.uiScale)}
-            onChange={(v) => updateSetting('uiScale', Number(v))}
-            options={[
-              { value: '100', label: '100%' },
-              { value: '110', label: '110%' },
-              { value: '125', label: '125%' },
-            ]}
-          />
         </Row>
       </Section>
 
@@ -329,131 +218,20 @@ const SettingsSection = ({ onStorageChange }) => {
           <Select
             value={settings.exportFormat}
             onChange={(v) => updateSetting('exportFormat', v)}
-            options={[{ value: 'pdf', label: 'PDF' }]}
+            options={EXPORT_FORMAT_OPTIONS}
           />
         </Row>
         <Row label="Качество экспорта">
           <Select
             value={settings.exportQuality}
             onChange={(v) => updateSetting('exportQuality', v)}
-            options={[
-              { value: 'standard', label: 'Стандартное' },
-              { value: 'high', label: 'Высокое' },
-              { value: 'max', label: 'Максимальное' },
-            ]}
+            options={EXPORT_QUALITY_OPTIONS}
           />
         </Row>
         <Row label="Встраивать шрифты в PDF">
           <Toggle checked={settings.embedFonts} onChange={(v) => updateSetting('embedFonts', v)} />
         </Row>
       </Section>
-
-      <Section title="Хранилище">
-        <div className="space-y-4">
-          <div>
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-app-muted">Использовано места</span>
-              <span className="font-semibold text-app-text">
-                {loadingStats ? '…' : `${usedMb} / ${limitMb}`}
-              </span>
-            </div>
-            <div className="h-2 rounded-full bg-app-hover overflow-hidden">
-              <div
-                className="h-full bg-indigo-500 rounded-full transition-all"
-                style={{ width: `${usagePct}%` }}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4 pt-2">
-            <div className="text-center p-4 rounded-2xl bg-app-hover">
-              <p className="text-2xl font-bold text-app-text">{loadingStats ? '—' : stats.projects}</p>
-              <p className="text-[10px] font-bold text-app-muted uppercase tracking-wider mt-1">Проектов</p>
-            </div>
-            <div className="text-center p-4 rounded-2xl bg-app-hover">
-              <p className="text-2xl font-bold text-app-text">{loadingStats ? '—' : stats.files}</p>
-              <p className="text-[10px] font-bold text-app-muted uppercase tracking-wider mt-1">Файлов</p>
-            </div>
-            <div className="text-center p-4 rounded-2xl bg-app-hover">
-              <p className="text-2xl font-bold text-app-text">{loadingStats ? '—' : stats.trash}</p>
-              <p className="text-[10px] font-bold text-app-muted uppercase tracking-wider mt-1">Корзина</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 pt-2">
-            <Btn
-              onClick={() => setConfirm({ type: 'trash' })}
-              disabled={stats.trash === 0}
-            >
-              Очистить корзину
-            </Btn>
-            <Btn onClick={() => setConfirm({ type: 'unused' })}>
-              Удалить неиспользуемые файлы
-            </Btn>
-          </div>
-        </div>
-      </Section>
-
-      <Section title="Безопасность">
-        <Row label="Сменить пароль" desc="Форма выше в разделе «Профиль»">
-          <Btn onClick={() => document.querySelector('input[type=password]')?.focus()}>Перейти</Btn>
-        </Row>
-        <Row label="Выйти со всех устройств" desc="Завершит текущую сессию">
-          <Btn variant="danger" onClick={() => setConfirm({ type: 'logoutAll' })}>Выйти</Btn>
-        </Row>
-      </Section>
-
-      <Section title="Опасная зона" danger>
-        <div className="flex flex-wrap gap-3">
-          <Btn variant="danger" onClick={() => setConfirm({ type: 'deleteAll' })}>
-            Очистить все проекты
-          </Btn>
-          <Btn variant="danger" onClick={() => setConfirm({ type: 'deleteAccount' })}>
-            Удалить аккаунт
-          </Btn>
-        </div>
-      </Section>
-
-      <ConfirmModal
-        open={confirm?.type === 'trash'}
-        title="Очистить корзину?"
-        message="Проекты в корзине будут удалены навсегда. Это действие нельзя отменить."
-        confirmLabel="Очистить"
-        loading={actionLoading}
-        onClose={() => setConfirm(null)}
-        onConfirm={handleClearTrash}
-      />
-      <ConfirmModal
-        open={confirm?.type === 'unused'}
-        title="Удалить неиспользуемые файлы?"
-        message="Будут удалены кэшированные превью проектов, которых больше нет в библиотеке."
-        confirmLabel="Удалить"
-        onClose={() => setConfirm(null)}
-        onConfirm={handleCleanUnused}
-      />
-      <ConfirmModal
-        open={confirm?.type === 'logoutAll'}
-        title="Выйти со всех устройств?"
-        message="Текущая сессия будет завершена. Потребуется войти снова."
-        confirmLabel="Выйти"
-        onClose={() => setConfirm(null)}
-        onConfirm={handleLogoutAll}
-      />
-      <ConfirmModal
-        open={confirm?.type === 'deleteAll'}
-        title="Очистить все проекты?"
-        message="Все проекты будут удалены без возможности восстановления."
-        confirmLabel="Удалить всё"
-        loading={actionLoading}
-        onClose={() => setConfirm(null)}
-        onConfirm={handleDeleteAllProjects}
-      />
-      <ConfirmModal
-        open={confirm?.type === 'deleteAccount'}
-        title="Удалить аккаунт?"
-        message="Локальные данные будут очищены, сессия завершена. Данные на сервере останутся до полной реализации удаления аккаунта."
-        confirmLabel="Удалить аккаунт"
-        onClose={() => setConfirm(null)}
-        onConfirm={handleDeleteAccount}
-      />
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ProjectList from '../components/Dashboard/ProjectList';
+import ProjectList, { TrashDeleteAllButton } from '../components/Dashboard/ProjectList';
 import TemplatesSection from '../components/Dashboard/TemplatesSection';
 import SettingsSection from '../components/Dashboard/SettingsSection';
 import ThemeToggle from '../components/UI/ThemeToggle';
@@ -38,7 +38,7 @@ const SECTION_HEADERS = {
   },
   settings: {
     title: 'Настройки',
-    subtitle: 'Профиль, внешний вид, редактор, экспорт и хранилище',
+    subtitle: 'Профиль, редактор и параметры экспорта',
   },
 };
 
@@ -333,11 +333,15 @@ const DashboardPage = () => {
       <aside className="w-72 border-r border-app-border bg-app-bg flex flex-col p-8 shrink-0 z-20">
         <div className="mb-12 pl-2">
           <div className="flex items-start justify-between gap-3 mb-4">
-            <h2 className="text-2xl font-serif font-bold text-app-text tracking-tighter italic">NEWS EDIT</h2>
+            <button
+              type="button"
+              onClick={() => setActiveSection('library')}
+              className="text-2xl font-serif font-bold text-app-text tracking-tighter italic hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors text-left"
+              title="На главную"
+            >
+              NEWS EDIT
+            </button>
             <ThemeToggle />
-          </div>
-          <div className="w-14 h-14 bg-app-hover rounded-2xl flex items-center justify-center border border-app-border shadow-inner text-indigo-500 dark:text-indigo-400">
-            <Newspaper className="w-6 h-6" strokeWidth={1.5} />
           </div>
         </div>
 
@@ -448,15 +452,24 @@ const DashboardPage = () => {
         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-500/10 dark:bg-indigo-600/20 blur-[130px] rounded-full -mr-32 -mt-32 pointer-events-none" />
 
         <div className="max-w-[1400px] mx-auto p-12">
-          <header className="mb-14">
-            <h1 className="text-4xl font-bold text-app-text mb-3 tracking-tight">{header.title}</h1>
-            <p className="text-app-muted font-medium text-sm">{header.subtitle}</p>
+          <header className="mb-14 flex items-start justify-between gap-6">
+            <div className="min-w-0">
+              <h1 className="text-4xl font-bold text-app-text mb-3 tracking-tight">{header.title}</h1>
+              <p className="text-app-muted font-medium text-sm">{header.subtitle}</p>
+            </div>
+            {activeSection === 'trash' && (
+              <TrashDeleteAllButton
+                key={listKey}
+                onStorageChange={bumpList}
+                onError={(msg) => setCreateError(msg)}
+              />
+            )}
           </header>
 
           {activeSection === 'templates' ? (
             <TemplatesSection onUseTemplate={(opts) => openCreateModal(opts)} />
           ) : activeSection === 'settings' ? (
-            <SettingsSection onStorageChange={bumpList} />
+            <SettingsSection />
           ) : (
             <ProjectList
               key={`${activeSection}-${listKey}`}

@@ -10,12 +10,14 @@ import {
   moveToTrash,
   restoreFromTrash,
   removeFromTrash,
+  clearAllTrashIds,
   isFavorite,
 } from '../../utils/dashboardStorage';
 
-const DeleteModal = ({ isOpen, onClose, onConfirm, mode = 'trash' }) => {
+const DeleteModal = ({ isOpen, onClose, onConfirm, mode = 'trash', count = 1, loading = false }) => {
   if (!isOpen) return null;
   const isPermanent = mode === 'permanent';
+  const isDeleteAll = mode === 'deleteAll';
   return (
     <div className="fixed inset-0 bg-app-overlay backdrop-blur-md flex items-center justify-center z-[100] animate-in fade-in duration-200">
       <div className="bg-app-surface border border-app-border p-8 rounded-[3rem] w-[400px] shadow-2xl transform animate-in zoom-in-95 duration-200">
@@ -23,17 +25,19 @@ const DeleteModal = ({ isOpen, onClose, onConfirm, mode = 'trash' }) => {
           <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
         </div>
         <h2 className="text-xl font-bold text-app-text mb-2 text-center">
-          {isPermanent ? 'Удалить навсегда?' : 'Переместить в корзину?'}
+          {isDeleteAll ? 'Удалить все проекты?' : isPermanent ? 'Удалить навсегда?' : 'Переместить в корзину?'}
         </h2>
         <p className="text-sm text-app-muted text-center mb-8 px-4 font-medium">
-          {isPermanent
-            ? 'Проект будет удалён без возможности восстановления.'
-            : 'Проект можно будет восстановить из раздела «Корзина».'}
+          {isDeleteAll
+            ? `Будет удалено без возможности восстановления: ${count} ${count === 1 ? 'проект' : count < 5 ? 'проекта' : 'проектов'}.`
+            : isPermanent
+              ? 'Проект будет удалён без возможности восстановления.'
+              : 'Проект можно будет восстановить из раздела «Корзина».'}
         </p>
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 px-4 py-4 rounded-2xl font-bold text-[10px] bg-app-hover hover:bg-app-hover-strong text-app-text-secondary transition-all uppercase tracking-[0.2em]">Отмена</button>
-          <button onClick={onConfirm} className="flex-1 px-4 py-4 rounded-2xl font-bold text-[10px] bg-rose-600 hover:bg-rose-500 text-white transition-all shadow-[0_0_20px_rgba(225,29,72,0.2)] uppercase tracking-[0.2em]">
-            {isPermanent ? 'Удалить' : 'В корзину'}
+          <button onClick={onClose} disabled={loading} className="flex-1 px-4 py-4 rounded-2xl font-bold text-[10px] bg-app-hover hover:bg-app-hover-strong text-app-text-secondary transition-all uppercase tracking-[0.2em] disabled:opacity-50">Отмена</button>
+          <button onClick={onConfirm} disabled={loading} className="flex-1 px-4 py-4 rounded-2xl font-bold text-[10px] bg-rose-600 hover:bg-rose-500 text-white transition-all shadow-[0_0_20px_rgba(225,29,72,0.2)] uppercase tracking-[0.2em] disabled:opacity-50">
+            {loading ? 'Удаление...' : isDeleteAll ? 'Удалить все' : isPermanent ? 'Удалить' : 'В корзину'}
           </button>
         </div>
       </div>
@@ -77,23 +81,81 @@ const EMPTY_MESSAGES = {
 
 const DRAG_MIME = 'application/x-project-id';
 
+export const TrashDeleteAllButton = ({ onStorageChange, onError }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const trashCount = getTrashIds().size;
+
+  if (trashCount === 0) return null;
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    try {
+      const ids = clearAllTrashIds();
+      await Promise.all(ids.map((id) => projectsAPI.delete(id).catch(() => null)));
+      onStorageChange?.();
+      setIsOpen(false);
+    } catch (err) {
+      onError?.(err.message || 'Не удалось удалить проекты');
+      setIsOpen(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className="shrink-0 px-6 py-3 rounded-2xl font-bold text-[10px] uppercase tracking-[0.2em] bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/25 hover:border-rose-500/40 transition-all"
+      >
+        Удалить все
+      </button>
+      <DeleteModal
+        isOpen={isOpen}
+        onClose={() => !loading && setIsOpen(false)}
+        onConfirm={handleConfirm}
+        mode="deleteAll"
+        count={trashCount}
+        loading={loading}
+      />
+    </>
+  );
+};
+
 const buildDragGhost = (sourceEl) => {
   const ghost = sourceEl.cloneNode(true);
   ghost.querySelectorAll('.project-card-overlay').forEach((el) => el.remove());
   ghost.querySelectorAll('button').forEach((el) => el.remove());
   ghost.setAttribute('aria-hidden', 'true');
+
+  ghost.querySelectorAll('*').forEach((el) => {
+    el.style.opacity = '1';
+    el.style.transform = 'none';
+    el.style.transition = 'none';
+    el.style.boxShadow = 'none';
+    el.style.filter = 'none';
+    el.style.backdropFilter = 'none';
+  });
+
+  const bg = window.getComputedStyle(sourceEl).backgroundColor;
+
   Object.assign(ghost.style, {
     position: 'fixed',
     top: '-10000px',
     left: '0',
     width: `${sourceEl.offsetWidth}px`,
-    opacity: '0.82',
+    opacity: '0.58',
     pointerEvents: 'none',
     zIndex: '9999',
     margin: '0',
     transform: 'none',
     transition: 'none',
-    boxShadow: '0 24px 48px rgba(0,0,0,0.35)',
+    boxShadow: '0 20px 40px rgba(0,0,0,0.28)',
+    border: '1px solid rgba(99, 102, 241, 0.35)',
+    background: bg,
+    borderRadius: window.getComputedStyle(sourceEl).borderRadius,
   });
   document.body.appendChild(ghost);
   return ghost;
@@ -226,7 +288,7 @@ const ProjectList = ({ mode = 'library', onStorageChange, onProjectDragStart, on
   if (loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-        {[1, 2, 3].map((i) => <div key={i} className="aspect-[1.1] bg-app-hover rounded-[3rem] animate-pulse" />)}
+        {[1, 2, 3].map((i) => <div key={i} className="aspect-[1.1] bg-app-hover rounded-2xl animate-pulse" />)}
       </div>
     );
   }
@@ -263,9 +325,9 @@ const ProjectList = ({ mode = 'library', onStorageChange, onProjectDragStart, on
               onDragStart={(e) => handleDragStart(e, project)}
               onDragEnd={handleDragEnd}
               onClick={() => handleCardClick(project.id)}
-              className={`group relative bg-app-surface border border-app-border rounded-[3rem] p-7 hover:bg-app-elevated hover:border-app-border-strong transition-all duration-500 shadow-xl dark:shadow-black/50 ${
+              className={`group relative bg-app-surface border border-app-border rounded-2xl p-6 hover:bg-app-elevated hover:border-app-border-strong transition-all duration-500 shadow-xl dark:shadow-black/50 ${
                 canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
-              } ${isDragging ? 'opacity-30 border-dashed border-indigo-500/40 shadow-none' : ''}`}
+              } ${isDragging ? 'opacity-50 scale-[0.98] border-indigo-500/35 shadow-md' : ''}`}
             >
               {mode !== 'trash' && (
                 <button
@@ -284,7 +346,7 @@ const ProjectList = ({ mode = 'library', onStorageChange, onProjectDragStart, on
                 </button>
               )}
 
-              <div className="aspect-[1.1] bg-slate-100 dark:bg-[#1a1a1e] rounded-[2rem] mb-7 overflow-hidden relative flex items-center justify-center ring-1 ring-app-border-strong shadow-inner">
+              <div className="aspect-[1.1] bg-slate-100 dark:bg-[#1a1a1e] rounded-xl mb-6 overflow-hidden relative flex items-center justify-center ring-1 ring-app-border-strong shadow-inner">
                 <ProjectCardPreview project={project} />
 
                 <div className="project-card-overlay absolute inset-0 bg-indigo-950/40 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px] flex flex-col items-center justify-center gap-3 pointer-events-none group-hover:pointer-events-auto">

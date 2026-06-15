@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Pencil, FileText, ChevronDown, Check } from 'lucide-react';
-import { exportAPI, projectsAPI } from '../services/api';
+import { projectsAPI } from '../services/api';
 import { getCachedProjectPreview } from '../utils/projectPreview';
 import { useAppSettings } from '../context/AppSettingsContext';
 import {
   exportClientImage,
   exportClientSvg,
+  exportClientPdf,
+  exportClientPreview,
   downloadDataUrl,
+  downloadBlob,
   downloadText,
   sanitizeFileName,
 } from '../utils/clientExport';
@@ -103,8 +106,9 @@ const ExportPage = () => {
   const [cropMarks, setCropMarks] = useState(false);
   const [bleeds, setBleeds] = useState(false);
   const [embedFonts, setEmbedFonts] = useState(true);
+  const [exportPreview, setExportPreview] = useState(null);
 
-  const previewSrc = project?.previewUrl || getCachedProjectPreview(id);
+  const previewSrc = exportPreview || project?.previewUrl || getCachedProjectPreview(id);
   const dpi = DPI_PRESETS.find((p) => p.id === dpiPreset)?.dpi ?? 300;
 
   useEffect(() => {
@@ -127,6 +131,18 @@ const ExportPage = () => {
     };
     if (id) loadProject();
   }, [id]);
+
+  useEffect(() => {
+    if (!project?.designSettings) {
+      setExportPreview(null);
+      return;
+    }
+    let cancelled = false;
+    exportClientPreview(project).then((url) => {
+      if (!cancelled) setExportPreview(url);
+    });
+    return () => { cancelled = true; };
+  }, [project]);
 
   useEffect(() => () => {
     if (progressTimer.current) clearInterval(progressTimer.current);
@@ -164,14 +180,6 @@ const ExportPage = () => {
     }
   };
 
-  const buildExportOptions = () => ({
-    dpi,
-    colorProfile,
-    cropMarks: exportFormat === 'pdf' ? cropMarks : false,
-    bleeds,
-    embedFonts,
-  });
-
   const handleGenerate = async () => {
     if (!id || id === 'undefined' || !project) {
       setError('Ошибка: проект не найден');
@@ -184,11 +192,15 @@ const ExportPage = () => {
     startProgress();
 
     const fileName = sanitizeFileName(projectName);
-    const options = buildExportOptions();
 
     try {
       if (exportFormat === 'pdf') {
-        await exportAPI.generatePDF(id, { fileName, options });
+        const blob = await exportClientPdf(project, {
+          dpi,
+          bleeds,
+          cropMarks,
+        });
+        downloadBlob(blob, `${fileName}.pdf`);
       } else if (exportFormat === 'svg') {
         const svg = await exportClientSvg(project, { bleeds });
         downloadText(svg, `${fileName}.svg`);
@@ -373,15 +385,20 @@ const ExportPage = () => {
                   </span>
                 </label>
                 {exportFormat === 'pdf' && (
-                  <label className="flex items-center gap-3 cursor-pointer">
+                  <p className="text-[11px] text-app-muted -mt-1 mb-2 pl-7">
+                    PDF создаётся из макета в выбранном DPI — совпадает с PNG-экспортом.
+                  </p>
+                )}
+                {exportFormat === 'pdf' && (
+                  <label className="flex items-center gap-3 cursor-pointer opacity-60">
                     <input
                       type="checkbox"
                       checked={embedFonts}
                       onChange={(e) => setEmbedFonts(e.target.checked)}
-                      disabled={loading}
+                      disabled
                       className="w-4 h-4 rounded accent-indigo-600"
                     />
-                    <span className="text-sm text-app-text">Встраивать шрифты в PDF</span>
+                    <span className="text-sm text-app-muted">Встраивать шрифты (не требуется для растрового PDF)</span>
                   </label>
                 )}
               </div>

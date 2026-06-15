@@ -152,9 +152,15 @@ exports.getPresetById = async (req, res) => {
     }
 
     const preset = await DesignPreset.findByPk(id);
-    if (!preset || !preset.isPublic) {
+    if (!preset) {
       return res.status(404).json({ message: 'Пресет не найден' });
     }
+
+    const isOwner = req.userId && preset.userId === req.userId;
+    if (!preset.isPublic && !isOwner) {
+      return res.status(404).json({ message: 'Пресет не найден' });
+    }
+
     res.json(preset);
   } catch (err) {
     res.status(500).json({ message: 'Ошибка сервера', error: err.message });

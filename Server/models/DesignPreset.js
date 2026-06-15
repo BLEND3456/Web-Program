@@ -16,7 +16,7 @@ const DesignPreset = sequelize.define('DesignPreset', {
     allowNull: true,
   },
   thumbnail: {
-    type: DataTypes.STRING,
+    type: DataTypes.TEXT,
     allowNull: true,
   },
   designSettings: {

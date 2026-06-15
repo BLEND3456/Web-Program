@@ -20,12 +20,18 @@ exports.exportPDF = async (req, res) => {
       return res.status(400).json({ message: 'Проект пуст, нет данных для экспорта' });
     }
 
-    // 4. Передаем данные в генератор PDF (передаем весь объект проекта)
-    const pdfBuffer = await generatePDF(project);
+    // 4. Передаем данные в генератор PDF
+    const options = req.body?.options || {};
+    const pdfBuffer = await generatePDF(project, options);
+
+    const rawName = (req.body?.fileName || project.name || `project-${project.id}`)
+      .replace(/[<>:"/\\|?*]/g, '_')
+      .trim()
+      .slice(0, 80) || `project-${project.id}`;
 
     // 5. Отправляем PDF обратно в браузер
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="project-${project.id}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${rawName}.pdf"`);
     res.send(pdfBuffer);
     
   } catch (err) {

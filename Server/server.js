@@ -3,7 +3,7 @@ require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const app = require('./app.js');
 const sequelize = require('./config/db');
-const { ensureProjectsPreviewUrlColumn } = require('./utils/ensureSchema');
+const { ensureProjectsPreviewUrlColumn, ensureDesignPresetsThumbnailColumn } = require('./utils/ensureSchema');
 
 // Обязательно импортируем модели для синхронизации
 const User = require('./models/User');
@@ -24,6 +24,7 @@ sequelize.authenticate()
     return sequelize.sync(syncOptions);
   })
   .then(() => ensureProjectsPreviewUrlColumn())
+  .then(() => ensureDesignPresetsThumbnailColumn())
   .then(() => {
     app.listen(PORT, () => {
       console.log(`Сервер запущен и слушает порт ${PORT}`);

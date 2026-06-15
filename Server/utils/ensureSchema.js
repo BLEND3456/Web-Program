@@ -27,4 +27,33 @@ async function ensureProjectsPreviewUrlColumn() {
   }
 }
 
-module.exports = { ensureProjectsPreviewUrlColumn };
+async function ensureDesignPresetsThumbnailColumn() {
+  const qi = sequelize.getQueryInterface();
+  let desc;
+  try {
+    desc = await qi.describeTable('design_presets');
+  } catch {
+    return;
+  }
+
+  const col = desc.thumbnail || desc.Thumbnail;
+  if (!col) {
+    await qi.addColumn('design_presets', 'thumbnail', {
+      type: DataTypes.TEXT,
+      allowNull: true
+    });
+    console.log('Миграция: добавлена колонка thumbnail в design_presets');
+    return;
+  }
+
+  const type = String(col.type || '').toLowerCase();
+  if (type.includes('varchar') || type.includes('character varying')) {
+    await qi.changeColumn('design_presets', 'thumbnail', {
+      type: DataTypes.TEXT,
+      allowNull: true
+    });
+    console.log('Миграция: thumbnail в design_presets расширен до TEXT');
+  }
+}
+
+module.exports = { ensureProjectsPreviewUrlColumn, ensureDesignPresetsThumbnailColumn };

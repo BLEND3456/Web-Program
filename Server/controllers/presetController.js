@@ -163,13 +163,14 @@ exports.getPresetById = async (req, res) => {
 
 exports.createPreset = async (req, res) => {
   try {
-    const { name, description, designSettings } = req.body;
+    const { name, description, designSettings, thumbnail } = req.body;
     if (!name) return res.status(400).json({ message: 'Название обязательно' });
 
     const preset = await DesignPreset.create({
       name,
       description,
       designSettings: designSettings || {},
+      thumbnail: thumbnail || null,
       userId: req.userId,
       isPublic: true
     });

@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
+import { AppSettingsProvider } from './context/AppSettingsContext';
 import LoginPage from './pages/LoginPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import DashboardPage from './pages/DashboardPage';
@@ -20,6 +21,7 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   return (
     <ThemeProvider>
+    <AppSettingsProvider>
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -42,6 +44,7 @@ function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Router>
+    </AppSettingsProvider>
     </ThemeProvider>
   );
 }

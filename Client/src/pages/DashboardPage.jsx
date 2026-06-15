@@ -1,10 +1,46 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProjectList from '../components/Dashboard/ProjectList';
+import TemplatesSection from '../components/Dashboard/TemplatesSection';
+import SettingsSection from '../components/Dashboard/SettingsSection';
 import ThemeToggle from '../components/UI/ThemeToggle';
 import { projectsAPI, designPresetsAPI } from '../services/api';
 import { buildNewspaperTemplateJSON, NEWSPAPER_TEMPLATES } from '../utils/newspaperTemplates';
-import { Plus, FolderArchive, LogOut, Newspaper, FileText, Briefcase, LayoutTemplate, Bookmark } from 'lucide-react';
+import { addToFavorites, moveToTrash } from '../utils/dashboardStorage';
+import { Plus, FolderArchive, LogOut, Newspaper, FileText, Briefcase, LayoutTemplate, Bookmark, Trash2, Star, Settings } from 'lucide-react';
+
+const DRAG_MIME = 'application/x-project-id';
+const DROP_TARGETS = new Set(['favorites', 'trash']);
+
+const NAV_SECTIONS = [
+  { id: 'library', label: 'Библиотека', icon: FolderArchive },
+  { id: 'templates', label: 'Шаблоны', icon: LayoutTemplate },
+  { id: 'favorites', label: 'Избранное', icon: Star },
+  { id: 'trash', label: 'Корзина', icon: Trash2 },
+];
+
+const SECTION_HEADERS = {
+  library: {
+    title: 'Ваши проекты',
+    subtitle: 'Управляйте своими газетными макетами и публикациями',
+  },
+  templates: {
+    title: 'Шаблоны',
+    subtitle: 'Готовые макеты и сохранённые пресеты для быстрого старта',
+  },
+  favorites: {
+    title: 'Избранное',
+    subtitle: 'Проекты, отмеченные звёздочкой для быстрого доступа',
+  },
+  trash: {
+    title: 'Корзина',
+    subtitle: 'Удалённые проекты — восстановите или удалите навсегда',
+  },
+  settings: {
+    title: 'Настройки',
+    subtitle: 'Профиль, внешний вид, редактор, экспорт и хранилище',
+  },
+};
 
 const NEW_DOCUMENT_PRESETS = [
   { id: 'a3-150', name: 'A3 (Таблоид)', sub: '150 DPI', w: 1754, h: 2480, desc: '29.7 × 42 см' },
@@ -21,7 +57,7 @@ const TEMPLATE_ICONS = {
   minimal: Newspaper,
 };
 
-const CreateFileModal = ({ isOpen, onClose, onConfirm }) => {
+const CreateFileModal = ({ isOpen, onClose, onConfirm, initialTemplateId, initialPresetId }) => {
   const [selected, setSelected] = useState(NEW_DOCUMENT_PRESETS[0]);
   const [selectedTemplate, setSelectedTemplate] = useState('blank');
   const [selectedPresetId, setSelectedPresetId] = useState(null);
@@ -29,6 +65,20 @@ const CreateFileModal = ({ isOpen, onClose, onConfirm }) => {
   const [presetsLoading, setPresetsLoading] = useState(false);
   const [name, setName] = useState('Без названия-1');
   const [isPortrait, setIsPortrait] = useState(true);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (initialPresetId) {
+      setSelectedPresetId(initialPresetId);
+      setSelectedTemplate(null);
+    } else if (initialTemplateId) {
+      setSelectedTemplate(initialTemplateId);
+      setSelectedPresetId(null);
+    } else {
+      setSelectedTemplate('blank');
+      setSelectedPresetId(null);
+    }
+  }, [isOpen, initialTemplateId, initialPresetId]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -194,8 +244,49 @@ const CreateFileModal = ({ isOpen, onClose, onConfirm }) => {
 
 const DashboardPage = () => {
   const navigate = useNavigate();
+  const [activeSection, setActiveSection] = useState('library');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createError, setCreateError] = useState(null);
+  const [createInitialTemplate, setCreateInitialTemplate] = useState(null);
+  const [createInitialPreset, setCreateInitialPreset] = useState(null);
+  const [listKey, setListKey] = useState(0);
+  const [dropHover, setDropHover] = useState(null);
+  const [isDraggingProject, setIsDraggingProject] = useState(false);
+
+  const bumpList = useCallback(() => setListKey((k) => k + 1), []);
+
+  const handleProjectDragStart = useCallback(() => {
+    setIsDraggingProject(true);
+  }, []);
+
+  const handleProjectDragEnd = useCallback(() => {
+    setIsDraggingProject(false);
+    setDropHover(null);
+  }, []);
+
+  const handleNavDrop = useCallback((e, sectionId) => {
+    e.preventDefault();
+    const projectId = e.dataTransfer.getData(DRAG_MIME);
+    if (!projectId || !DROP_TARGETS.has(sectionId)) return;
+
+    if (sectionId === 'favorites') {
+      addToFavorites(projectId);
+    } else if (sectionId === 'trash') {
+      moveToTrash(projectId);
+    }
+
+    setDropHover(null);
+    setIsDraggingProject(false);
+    bumpList();
+  }, [bumpList]);
+
+  const openCreateModal = (opts = {}) => {
+    setCreateInitialTemplate(opts.templateId ?? null);
+    setCreateInitialPreset(opts.presetId ?? null);
+    setIsCreateModalOpen(true);
+  };
+
+  const header = SECTION_HEADERS[activeSection] || SECTION_HEADERS.library;
 
   const handleLogout = () => { localStorage.removeItem('token'); navigate('/login'); };
   const handleConfirmCreate = async (data) => {
@@ -250,18 +341,100 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        <nav className="flex-1 space-y-4">
+        <nav
+          className="flex-1 space-y-4"
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) {
+              setDropHover(null);
+            }
+          }}
+        >
           <button
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={() => openCreateModal()}
             className="w-full bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-2xl font-bold text-[10px] tracking-[0.1em] flex items-center justify-center gap-2.5 transition-all shadow-[0_10px_30px_rgba(79,70,229,0.25)] uppercase mb-10"
           >
             <Plus className="w-4 h-4" strokeWidth={2.5} /> Создать файл
           </button>
 
-          <button className="w-full flex items-center gap-4 p-4 rounded-2xl bg-app-hover text-app-text font-bold text-[10px] tracking-[0.2em] border border-app-border transition-all opacity-90 hover:opacity-100">
-            <FolderArchive className="w-4 h-4 text-app-muted" strokeWidth={2} /> БИБЛИОТЕКА
-          </button>
+          {NAV_SECTIONS.map(({ id, label, icon: Icon }) => {
+            const active = activeSection === id;
+            const isDropZone = DROP_TARGETS.has(id);
+            const isTrashHover = dropHover === 'trash' && id === 'trash';
+            const isFavHover = dropHover === 'favorites' && id === 'favorites';
+
+            let dropClasses = '';
+            if (isTrashHover) {
+              dropClasses = '!bg-rose-600/45 !border-rose-500 !text-rose-300 shadow-[0_0_32px_rgba(244,63,94,0.55)] scale-[1.02]';
+            } else if (isFavHover) {
+              dropClasses = '!bg-amber-500/25 !border-amber-500 !text-amber-300 shadow-[0_0_24px_rgba(245,158,11,0.35)] scale-[1.02]';
+            } else if (id === 'trash' && isDraggingProject) {
+              dropClasses = 'border-rose-500/30';
+            }
+
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveSection(id)}
+                onDragOver={(e) => {
+                  if (!isDropZone) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.dataTransfer.dropEffect = 'move';
+                  setDropHover(id);
+                }}
+                onDragEnter={(e) => {
+                  if (!isDropZone) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDropHover(id);
+                }}
+                onDragLeave={(e) => {
+                  if (!isDropZone) return;
+                  e.stopPropagation();
+                  if (!e.currentTarget.contains(e.relatedTarget)) {
+                    setDropHover((prev) => (prev === id ? null : prev));
+                  }
+                }}
+                onDrop={(e) => handleNavDrop(e, id)}
+                className={`w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-[10px] tracking-[0.2em] border transition-all duration-200 ${
+                  dropClasses
+                    ? dropClasses
+                    : active
+                      ? 'bg-app-hover text-app-text border-app-border-strong shadow-inner'
+                      : 'text-app-muted border-transparent hover:bg-app-hover hover:text-app-text hover:border-app-border'
+                } ${isDropZone && isDraggingProject ? 'ring-1 ring-dashed ring-app-border-strong' : ''}`}
+              >
+                <Icon
+                  className={`w-4 h-4 shrink-0 transition-colors ${
+                    isTrashHover
+                      ? '!text-rose-300'
+                      : isFavHover
+                        ? '!text-amber-300'
+                        : active
+                          ? 'text-indigo-500 dark:text-indigo-400'
+                          : 'text-app-muted'
+                  }`}
+                  strokeWidth={2}
+                />
+                {label.toUpperCase()}
+              </button>
+            );
+          })}
         </nav>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection('settings')}
+          className={`w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-[10px] tracking-[0.2em] border transition-all mt-6 ${
+            activeSection === 'settings'
+              ? 'bg-app-hover text-app-text border-app-border-strong shadow-inner'
+              : 'text-app-muted border-transparent hover:bg-app-hover hover:text-app-text hover:border-app-border'
+          }`}
+        >
+          <Settings className={`w-4 h-4 shrink-0 ${activeSection === 'settings' ? 'text-indigo-500 dark:text-indigo-400' : 'text-app-muted'}`} strokeWidth={2} />
+          НАСТРОЙКИ
+        </button>
 
         <button
           onClick={handleLogout}
@@ -276,11 +449,30 @@ const DashboardPage = () => {
 
         <div className="max-w-[1400px] mx-auto p-12">
           <header className="mb-14">
-            <h1 className="text-4xl font-bold text-app-text mb-3 tracking-tight">Ваши проекты</h1>
-            <p className="text-app-muted font-medium text-sm">Управляйте своими газетными макетами и публикациями</p>
+            <h1 className="text-4xl font-bold text-app-text mb-3 tracking-tight">{header.title}</h1>
+            <p className="text-app-muted font-medium text-sm">{header.subtitle}</p>
           </header>
-          <ProjectList />
+
+          {activeSection === 'templates' ? (
+            <TemplatesSection onUseTemplate={(opts) => openCreateModal(opts)} />
+          ) : activeSection === 'settings' ? (
+            <SettingsSection onStorageChange={bumpList} />
+          ) : (
+            <ProjectList
+              key={`${activeSection}-${listKey}`}
+              mode={activeSection}
+              onStorageChange={bumpList}
+              onProjectDragStart={handleProjectDragStart}
+              onProjectDragEnd={handleProjectDragEnd}
+            />
+          )}
         </div>
+
+        {(activeSection === 'library' || activeSection === 'favorites') && (
+          <p className="absolute bottom-8 left-12 right-12 max-w-xl text-[11px] text-app-muted leading-relaxed pointer-events-none">
+            Карточку проекта можно перетащить в раздел «Избранное» или «Корзина» в меню слева.
+          </p>
+        )}
       </main>
 
       {createError && (
@@ -291,8 +483,15 @@ const DashboardPage = () => {
 
       <CreateFileModal
         isOpen={isCreateModalOpen}
-        onClose={() => { setIsCreateModalOpen(false); setCreateError(null); }}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setCreateError(null);
+          setCreateInitialTemplate(null);
+          setCreateInitialPreset(null);
+        }}
         onConfirm={handleConfirmCreate}
+        initialTemplateId={createInitialTemplate}
+        initialPresetId={createInitialPreset}
       />
     </div>
   );

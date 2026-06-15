@@ -13,6 +13,7 @@ import {
 } from '../../utils/projectPreview';
 import { Pencil, Minus, Plus } from 'lucide-react';
 import ThemeToggle from '../UI/ThemeToggle';
+import { useAppSettings } from '../../context/AppSettingsContext';
 
 // --- ВЕРХНЯЯ СТРОКА НАСТРОЕК (CONTEXT BAR) ---
 const ContextBar = () => {
@@ -130,6 +131,7 @@ const WorkspaceInner = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { canvas } = useWorkspace();
+  const { settings } = useAppSettings();
   
   const [showPresetModal, setShowPresetModal] = useState(false);
   const [presetForm, setPresetForm] = useState({ name: '', description: '' });
@@ -150,6 +152,38 @@ const WorkspaceInner = () => {
   useEffect(() => {
     leaveSaveRef.current = { id, projectTitle, canvas, projectSize };
   }, [id, projectTitle, canvas, projectSize]);
+
+  useEffect(() => {
+    if (!settings.autosave || !canvas || !id || id === 'undefined') return;
+    const timer = setInterval(async () => {
+      const { id: pid, projectTitle: title, canvas: c } = leaveSaveRef.current;
+      if (!c || !pid || pid === 'undefined') return;
+      try {
+        await projectsAPI.save(pid, {
+          name: title,
+          designSettings: c.toJSON(CANVAS_JSON_PROPS),
+        });
+      } catch (err) {
+        console.warn('autosave:', err);
+      }
+    }, settings.autosaveInterval * 1000);
+    return () => clearInterval(timer);
+  }, [settings.autosave, settings.autosaveInterval, canvas, id]);
+
+  useEffect(() => {
+    if (!canvas) return;
+    const grid = 20;
+    const onMoving = (e) => {
+      if (!settings.snapToGrid) return;
+      const t = e.target;
+      t.set({
+        left: Math.round(t.left / grid) * grid,
+        top: Math.round(t.top / grid) * grid,
+      });
+    };
+    canvas.on('object:moving', onMoving);
+    return () => canvas.off('object:moving', onMoving);
+  }, [canvas, settings.snapToGrid]);
 
   const persistProject = async ({ withPreview = true, name = projectTitle } = {}) => {
     if (!canvas || !id || id === 'undefined') return { previewUrl: null };
@@ -288,7 +322,12 @@ const WorkspaceInner = () => {
     if (!canvas || !presetForm.name.trim()) return;
     setIsCreatingPreset(true);
     try {
-      await designPresetsAPI.create({ ...presetForm, designSettings: canvas.toJSON() });
+      const thumbnail = captureCanvasPreview(canvas, projectSize.width, projectSize.height);
+      await designPresetsAPI.create({
+        ...presetForm,
+        designSettings: canvas.toJSON(CANVAS_JSON_PROPS),
+        ...(thumbnail && { thumbnail })
+      });
       showNotification('Пресет успешно создан', 'success');
       setShowPresetModal(false);
       setPresetForm({ name: '', description: '' });
@@ -324,7 +363,7 @@ const WorkspaceInner = () => {
 
         <div className="flex items-center gap-3">
           <ThemeToggle />
-          <button onClick={() => id && id !== 'undefined' && navigate(`/export/${id}`)} className="px-5 py-2 hover:bg-app-hover rounded-xl text-xs font-semibold text-app-text-secondary border border-transparent hover:border-app-border">Экспорт PDF</button>
+          <button onClick={() => id && id !== 'undefined' && navigate(`/export/${id}`, { state: { from: 'editor' } })} className="px-5 py-2 hover:bg-app-hover rounded-xl text-xs font-semibold text-app-text-secondary border border-transparent hover:border-app-border">Экспорт PDF</button>
           <button onClick={() => setShowPresetModal(true)} className="px-5 py-2 hover:bg-app-hover rounded-xl text-xs font-semibold text-app-text-secondary border border-transparent hover:border-app-border">Создать пресет</button>
           <button onClick={onSaveProject} disabled={isSaving} className="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 px-6 py-2 rounded-xl text-xs font-semibold transition-all">
             {isSaving ? 'Сохранение...' : 'Сохранить'}
@@ -332,13 +371,31 @@ const WorkspaceInner = () => {
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden relative">
-        <aside className="w-[72px] bg-app-bg border-r border-app-border py-6 flex flex-col items-center z-10"><Toolbar /></aside>
+      <div className="flex-1 flex overflow-visible relative">
+        <aside className="relative w-[72px] shrink-0 overflow-visible bg-app-bg border-r border-app-border py-6 flex flex-col items-center z-30">
+          <Toolbar />
+        </aside>
 
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <ContextBar />
           <main className="flex-1 relative bg-app-canvas flex items-center justify-center overflow-hidden z-0">
             <div className="absolute inset-0 opacity-40 canvas-grid-pattern" />
+            {settings.showRulers && (
+              <>
+                <div className="absolute top-0 left-0 right-0 h-7 bg-app-bg/90 border-b border-app-border z-20 pointer-events-none flex items-end px-2 gap-8">
+                  {[0, 25, 50, 75, 100].map((p) => (
+                    <span key={p} className="text-[9px] text-app-muted font-mono">{p}%</span>
+                  ))}
+                </div>
+                <div className="absolute top-7 left-0 bottom-0 w-7 bg-app-bg/90 border-r border-app-border z-20 pointer-events-none" />
+              </>
+            )}
+            {settings.showGuides && (
+              <>
+                <div className="absolute top-1/2 left-0 right-0 h-px bg-sky-500/50 z-10 pointer-events-none" />
+                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-sky-500/50 z-10 pointer-events-none" />
+              </>
+            )}
             <CanvasView width={projectSize.width} height={projectSize.height} containerRef={canvasContainerRef} />
             
             {/* Панель масштабирования */}

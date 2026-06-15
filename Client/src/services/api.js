@@ -132,14 +132,19 @@ export const designPresetsAPI = {
 
 // 4. БЛОК ЭКСПОРТА (exportAPI)
 export const exportAPI = {
-  generatePDF: (projectId) => {
+  generatePDF: (projectId, { fileName, options } = {}) => {
     const token = localStorage.getItem('token');
     const url = `${BASE_URL}/export/pdf/${projectId}`;
     const headers = {
-      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
     };
-    
-    return fetch(url, { method: 'POST', headers })
+
+    return fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ fileName, options }),
+    })
       .then(async (res) => {
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
@@ -148,15 +153,15 @@ export const exportAPI = {
         }
         return res.blob();
       })
-      .then(blob => {
+      .then((blob) => {
         const downloadUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = downloadUrl;
-        link.download = `project-${projectId}.pdf`;
+        link.download = fileName ? `${fileName}.pdf` : `project-${projectId}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(downloadUrl);
       });
-  }
+  },
 };

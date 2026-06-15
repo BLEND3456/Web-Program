@@ -1,6 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useWorkspace } from '../../context/WorkspaceContext';
 
+const toHexColor = (color) => {
+  if (!color || typeof color !== 'string') return '#000000';
+  if (color.startsWith('#')) {
+    if (color.length === 4) {
+      return `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`;
+    }
+    return color.length === 7 ? color : '#000000';
+  }
+  const match = color.match(/\d+/g);
+  if (match && match.length >= 3) {
+    return `#${match.slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('')}`;
+  }
+  return '#000000';
+};
+
 const PropertyPanel = () => {
   const { selectedObject, canvas } = useWorkspace();
   const [fill, setFill] = useState('#818cf8');
@@ -16,7 +31,7 @@ const PropertyPanel = () => {
   useEffect(() => {
     if (!selectedObject) return;
     const sync = () => {
-      setFill(selectedObject.fill || '#000000');
+      setFill(toHexColor(selectedObject.fill || '#000000'));
       setOpacity(selectedObject.opacity !== undefined ? selectedObject.opacity : 1);
     };
     sync();

@@ -161,11 +161,6 @@ const WorkspaceInner = () => {
       previewUrl = captureCanvasPreview(canvas, projectSize.width, projectSize.height);
       if (previewUrl) {
         cacheProjectPreview(id, previewUrl);
-        try {
-          await projectsAPI.savePreview(id, { name, previewUrl });
-        } catch (previewErr) {
-          console.warn('savePreview:', previewErr);
-        }
       }
     }
 
@@ -399,6 +394,7 @@ const WorkspaceInner = () => {
             <h2 className="text-xl font-semibold text-app-text mb-6">Новый пресет</h2>
             <form onSubmit={onCreatePreset} className="space-y-5">
               <input required type="text" value={presetForm.name} onChange={e => setPresetForm({...presetForm, name: e.target.value})} className="w-full bg-app-hover border border-app-border-strong rounded-xl px-4 py-3.5 text-sm text-app-text focus:outline-none focus:border-indigo-500" placeholder="Название пресета" />
+              <input type="text" value={presetForm.description} onChange={e => setPresetForm({...presetForm, description: e.target.value})} className="w-full bg-app-hover border border-app-border-strong rounded-xl px-4 py-3.5 text-sm text-app-text focus:outline-none focus:border-indigo-500" placeholder="Краткое описание (необязательно)" />
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setShowPresetModal(false)} className="flex-1 px-4 py-3.5 bg-app-hover rounded-xl font-semibold text-sm text-app-text-secondary">Отмена</button>
                 <button type="submit" className="flex-1 px-4 py-3.5 bg-indigo-600 text-white rounded-xl font-semibold text-sm">Сохранить</button>

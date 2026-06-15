@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 const { JWT_SECRET } = require('../config/jwt');
 
-module.exports = (req, res, next) => {
+module.exports = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
     return res.status(401).json({ message: 'Токен не предоставлен' });
@@ -14,7 +15,11 @@ module.exports = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.userId = decoded.userId;
+    const user = await User.findByPk(decoded.userId);
+    if (!user) {
+      return res.status(401).json({ message: 'Сессия устарела, войдите снова' });
+    }
+    req.userId = user.id;
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Токен недействителен' });

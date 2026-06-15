@@ -30,10 +30,10 @@ exports.getProjectById = async (req, res) => {
 
 exports.createProject = async (req, res) => {
   try {
-    const { name = 'Без названия', width = 800, height = 1000, presetId } = req.body;
+    const { name = 'Без названия', width = 800, height = 1000, presetId, designSettings: bodyDesignSettings } = req.body;
     
-    let designSettings = null;
-    if (presetId) {
+    let designSettings = bodyDesignSettings || null;
+    if (!designSettings && presetId) {
       const preset = await DesignPreset.findByPk(presetId);
       if (preset && preset.isPublic) {
         designSettings = preset.designSettings;
@@ -50,6 +50,7 @@ exports.createProject = async (req, res) => {
     });
     res.status(201).json(project);
   } catch (err) {
+    console.error('createProject error:', err.message);
     res.status(500).json({ message: 'Ошибка сервера', error: err.message });
   }
 };
@@ -121,7 +122,21 @@ exports.getAllPresets = async (req, res) => {
   try {
     const presets = await DesignPreset.findAll({
       where: { isPublic: true },
-      attributes: ['id', 'name', 'description', 'thumbnail']
+      attributes: ['id', 'name', 'description', 'thumbnail', 'userId'],
+      order: [['createdAt', 'DESC']]
+    });
+    res.json(presets);
+  } catch (err) {
+    res.status(500).json({ message: 'Ошибка сервера', error: err.message });
+  }
+};
+
+exports.getMyPresets = async (req, res) => {
+  try {
+    const presets = await DesignPreset.findAll({
+      where: { userId: req.userId },
+      attributes: ['id', 'name', 'description', 'thumbnail', 'createdAt'],
+      order: [['createdAt', 'DESC']]
     });
     res.json(presets);
   } catch (err) {
@@ -131,7 +146,12 @@ exports.getAllPresets = async (req, res) => {
 
 exports.getPresetById = async (req, res) => {
   try {
-    const preset = await DesignPreset.findByPk(req.params.id);
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) {
+      return res.status(404).json({ message: 'Пресет не найден' });
+    }
+
+    const preset = await DesignPreset.findByPk(id);
     if (!preset || !preset.isPublic) {
       return res.status(404).json({ message: 'Пресет не найден' });
     }

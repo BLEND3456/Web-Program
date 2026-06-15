@@ -5,6 +5,7 @@ const presetController = require('../controllers/presetController');
 
 // ПРЕСЕТЫ ДИЗАЙНА (публичные, БЕЗ авторизации)
 router.get('/design-presets', presetController.getAllPresets);
+router.get('/design-presets/mine', auth, presetController.getMyPresets);
 router.get('/design-presets/:id', presetController.getPresetById);
 
 // ВСЕ ОСТАЛЬНЫЕ МАРШРУТЫ требуют авторизацию
@@ -15,10 +16,12 @@ router.get('/projects', presetController.getAllProjects);
 router.get('/projects/:id', presetController.getProjectById);
 router.post('/projects', presetController.createProject);
 router.patch('/projects/:id/preview', presetController.saveProjectPreview);
+router.put('/projects/:id/preview', presetController.saveProjectPreview);
 router.put('/projects/:id', presetController.saveProject);
 router.delete('/projects/:id', presetController.deleteProject);
 
 // ПРЕСЕТЫ ДИЗАЙНА (создание - требует авторизацию)
+router.get('/my-design-presets', presetController.getMyPresets);
 router.post('/design-presets', presetController.createPreset);
 
 module.exports = router;

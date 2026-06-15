@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProjectList from '../components/Dashboard/ProjectList';
 import ThemeToggle from '../components/UI/ThemeToggle';
-import { projectsAPI } from '../services/api';
-import { Plus, FolderArchive, LogOut, Newspaper } from 'lucide-react';
+import { projectsAPI, designPresetsAPI } from '../services/api';
+import { buildNewspaperTemplateJSON, NEWSPAPER_TEMPLATES } from '../utils/newspaperTemplates';
+import { Plus, FolderArchive, LogOut, Newspaper, FileText, Briefcase, LayoutTemplate, Bookmark } from 'lucide-react';
 
 const NEW_DOCUMENT_PRESETS = [
   { id: 'a3-150', name: 'A3 (Таблоид)', sub: '150 DPI', w: 1754, h: 2480, desc: '29.7 × 42 см' },
@@ -13,17 +14,62 @@ const NEW_DOCUMENT_PRESETS = [
   { id: 'a2', name: 'A2 (Большой формат)', sub: '150 DPI', w: 2480, h: 3508, desc: '42 × 59.4 см' },
 ];
 
+const TEMPLATE_ICONS = {
+  blank: LayoutTemplate,
+  classic: FileText,
+  business: Briefcase,
+  minimal: Newspaper,
+};
+
 const CreateFileModal = ({ isOpen, onClose, onConfirm }) => {
   const [selected, setSelected] = useState(NEW_DOCUMENT_PRESETS[0]);
+  const [selectedTemplate, setSelectedTemplate] = useState('blank');
+  const [selectedPresetId, setSelectedPresetId] = useState(null);
+  const [savedPresets, setSavedPresets] = useState([]);
+  const [presetsLoading, setPresetsLoading] = useState(false);
   const [name, setName] = useState('Без названия-1');
   const [isPortrait, setIsPortrait] = useState(true);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    const loadPresets = async () => {
+      setPresetsLoading(true);
+      try {
+        const data = await designPresetsAPI.getMine();
+        if (!cancelled) setSavedPresets(data);
+      } catch {
+        if (!cancelled) setSavedPresets([]);
+      } finally {
+        if (!cancelled) setPresetsLoading(false);
+      }
+    };
+    loadPresets();
+    return () => { cancelled = true; };
+  }, [isOpen]);
+
   if (!isOpen) return null;
+
+  const selectBuiltin = (id) => {
+    setSelectedTemplate(id);
+    setSelectedPresetId(null);
+  };
+
+  const selectSavedPreset = (id) => {
+    setSelectedPresetId(id);
+    setSelectedTemplate(null);
+  };
 
   const handleCreate = () => {
     const finalW = isPortrait ? selected.w : selected.h;
     const finalH = isPortrait ? selected.h : selected.w;
-    onConfirm({ name, width: finalW, height: finalH });
+    onConfirm({
+      name,
+      width: finalW,
+      height: finalH,
+      templateId: selectedPresetId ? null : (selectedTemplate || 'blank'),
+      presetId: selectedPresetId,
+    });
   };
 
   return (
@@ -52,23 +98,91 @@ const CreateFileModal = ({ isOpen, onClose, onConfirm }) => {
           </div>
         </div>
 
-        <div className="w-[340px] p-10 flex flex-col bg-app-surface">
-          <h2 className="text-[10px] font-black text-app-muted uppercase tracking-[0.3em] mb-10">Детали пресета</h2>
-          <div className="space-y-8 flex-1">
-            <input value={name} onChange={e => setName(e.target.value)} className="w-full bg-transparent border-b border-app-border-strong py-2 text-lg font-bold text-app-text outline-none focus:border-indigo-500 transition-all" />
-            <div className="grid grid-cols-2 gap-4">
+        <div className="w-[340px] p-10 flex flex-col min-h-0 bg-app-surface">
+          <h2 className="text-[10px] font-black text-app-muted uppercase tracking-[0.3em] mb-6 shrink-0">Детали пресета</h2>
+
+          <div className="flex flex-col flex-1 min-h-0 gap-5">
+            <input value={name} onChange={e => setName(e.target.value)} className="w-full bg-transparent border-b border-app-border-strong py-2 text-lg font-bold text-app-text outline-none focus:border-indigo-500 transition-all shrink-0" />
+            <div className="grid grid-cols-2 gap-4 shrink-0">
               <div><label className="text-[9px] font-bold text-app-muted uppercase mb-2 block">Ширина</label><div className="bg-app-hover rounded-xl p-3 text-sm text-app-text-secondary">{isPortrait ? selected.w : selected.h} px</div></div>
               <div><label className="text-[9px] font-bold text-app-muted uppercase mb-2 block">Высота</label><div className="bg-app-hover rounded-xl p-3 text-sm text-app-text-secondary">{isPortrait ? selected.h : selected.w} px</div></div>
             </div>
-            <div>
+            <div className="shrink-0">
               <label className="text-[9px] font-bold text-app-muted uppercase mb-3 block text-center">Ориентация</label>
               <div className="flex gap-2">
                 <button onClick={() => setIsPortrait(true)} className={`flex-1 p-3 rounded-xl border flex items-center justify-center transition-all ${isPortrait ? 'bg-indigo-600/20 border-indigo-500 text-indigo-500 dark:text-indigo-400' : 'bg-app-hover border-transparent opacity-60'}`}><span className="text-[10px] font-bold uppercase">Книжная</span></button>
                 <button onClick={() => setIsPortrait(false)} className={`flex-1 p-3 rounded-xl border flex items-center justify-center transition-all ${!isPortrait ? 'bg-indigo-600/20 border-indigo-500 text-indigo-500 dark:text-indigo-400' : 'bg-app-hover border-transparent opacity-60'}`}><span className="text-[10px] font-bold uppercase">Альбомная</span></button>
               </div>
             </div>
+
+            <div className="flex flex-col flex-1 min-h-0 pt-1">
+              <label className="text-[9px] font-bold text-app-muted uppercase mb-2 block tracking-[0.2em] shrink-0">Готовые шаблоны</label>
+              <div className="flex-1 min-h-[120px] max-h-[220px] overflow-y-auto overflow-x-hidden custom-scrollbar pr-1 -mr-1">
+                <div className="grid grid-cols-2 gap-2 pb-1">
+              {NEWSPAPER_TEMPLATES.map((tpl) => {
+                const Icon = TEMPLATE_ICONS[tpl.id];
+                const isActive = !selectedPresetId && selectedTemplate === tpl.id;
+                return (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    onClick={() => selectBuiltin(tpl.id)}
+                    className={`flex items-start gap-2.5 p-3 rounded-xl border text-left transition-all ${
+                      isActive
+                        ? 'bg-indigo-600/10 border-indigo-500/50'
+                        : 'bg-app-hover border-app-border hover:bg-app-hover-strong'
+                    }`}
+                  >
+                    <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
+                      isActive ? 'bg-indigo-500/20 text-indigo-500 dark:text-indigo-400' : 'bg-app-elevated text-app-muted'
+                    }`}>
+                      <Icon className="w-4 h-4" strokeWidth={1.75} />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-bold text-app-text truncate">{tpl.name}</span>
+                      <span className="block text-[8px] text-app-muted leading-tight mt-0.5">{tpl.desc}</span>
+                    </div>
+                  </button>
+                );
+              })}
+
+              {presetsLoading && (
+                <div className="col-span-2 text-[9px] text-app-muted text-center py-2">Загрузка ваших шаблонов…</div>
+              )}
+
+              {!presetsLoading && savedPresets.map((preset) => {
+                const isActive = selectedPresetId === preset.id;
+                return (
+                  <button
+                    key={`preset-${preset.id}`}
+                    type="button"
+                    onClick={() => selectSavedPreset(preset.id)}
+                    className={`flex items-start gap-2.5 p-3 rounded-xl border text-left transition-all ${
+                      isActive
+                        ? 'bg-violet-600/10 border-violet-500/50'
+                        : 'bg-app-hover border-app-border hover:bg-app-hover-strong'
+                    }`}
+                  >
+                    <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
+                      isActive ? 'bg-violet-500/20 text-violet-500 dark:text-violet-400' : 'bg-app-elevated text-app-muted'
+                    }`}>
+                      <Bookmark className="w-4 h-4" strokeWidth={1.75} />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-bold text-app-text truncate">{preset.name}</span>
+                      <span className="block text-[8px] text-app-muted leading-tight mt-0.5 truncate">
+                        {preset.description || 'Мой сохранённый макет'}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="flex gap-3 pt-6">
+
+          <div className="flex gap-3 pt-4 mt-auto shrink-0">
             <button onClick={onClose} className="flex-1 py-4 font-bold text-[10px] uppercase text-app-muted hover:text-app-text transition-all">Закрыть</button>
             <button onClick={handleCreate} className="flex-[1.5] py-4 rounded-2xl font-bold text-[10px] uppercase bg-indigo-600 text-white shadow-xl hover:bg-indigo-500 transition-all">Создать</button>
           </div>
@@ -87,7 +201,36 @@ const DashboardPage = () => {
   const handleConfirmCreate = async (data) => {
     setCreateError(null);
     try {
-      const newProject = await projectsAPI.create(data);
+      let designSettings = null;
+
+      if (data.presetId) {
+        const preset = await designPresetsAPI.getById(data.presetId);
+        const newProject = await projectsAPI.create({
+          name: data.name,
+          width: data.width,
+          height: data.height,
+        });
+        if (preset?.designSettings) {
+          await projectsAPI.save(newProject.id, { designSettings: preset.designSettings });
+        }
+        navigate(`/editor/${newProject.id}`);
+        return;
+      }
+
+      if (data.templateId && data.templateId !== 'blank') {
+        designSettings = buildNewspaperTemplateJSON(data.templateId, data.width, data.height);
+      }
+
+      const newProject = await projectsAPI.create({
+        name: data.name,
+        width: data.width,
+        height: data.height,
+      });
+
+      if (designSettings) {
+        await projectsAPI.save(newProject.id, { designSettings });
+      }
+
       navigate(`/editor/${newProject.id}`);
     } catch (err) {
       setCreateError(err.message || 'Не удалось создать проект');

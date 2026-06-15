@@ -4,21 +4,21 @@
 
 /* ——— Светлая тема (по умолчанию на :root) ——— */
 :root {
-  --app-bg: #f1f5f9;
+  --app-bg: #eef2f6;
   --app-surface: #ffffff;
   --app-elevated: #f8fafc;
-  --app-canvas: #e2e8f0;
-  --app-border: rgba(15, 23, 42, 0.08);
-  --app-border-strong: rgba(15, 23, 42, 0.14);
+  --app-canvas: #dbe4ef;
+  --app-border: rgba(15, 23, 42, 0.14);
+  --app-border-strong: rgba(15, 23, 42, 0.22);
   --app-text: #0f172a;
-  --app-text-secondary: #334155;
-  --app-muted: #64748b;
-  --app-hover: rgba(15, 23, 42, 0.04);
-  --app-hover-strong: rgba(15, 23, 42, 0.08);
+  --app-text-secondary: #1e293b;
+  --app-muted: #475569;
+  --app-hover: rgba(15, 23, 42, 0.06);
+  --app-hover-strong: rgba(15, 23, 42, 0.1);
   --app-input: #ffffff;
   --app-overlay: rgba(15, 23, 42, 0.45);
-  --scrollbar-thumb: rgba(15, 23, 42, 0.15);
-  --scrollbar-thumb-hover: rgba(15, 23, 42, 0.28);
+  --scrollbar-thumb: rgba(15, 23, 42, 0.22);
+  --scrollbar-thumb-hover: rgba(15, 23, 42, 0.35);
 }
 
 /* ——— Тёмная тема ——— */

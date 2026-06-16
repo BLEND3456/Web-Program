@@ -108,6 +108,8 @@ input[type=number] {
     outline: none !important;
     position: relative !important;
     overflow: hidden !important;
+    contain: layout paint;
+    max-width: 100%;
 }
 
 /* На всякий случай гасим фокус на самих внутренних холстах */

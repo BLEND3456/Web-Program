@@ -4,7 +4,7 @@ import { fabric } from 'fabric';
 import { buildNewspaperTemplateJSON, NEWSPAPER_TEMPLATES } from '../../utils/newspaperTemplates';
 import { designPresetsAPI } from '../../services/api';
 import { getBuiltinTemplatePreview, resolvePresetPreview, cachePresetTemplatePreview } from '../../utils/templatePreview';
-import { loadDesignOntoCanvas } from '../../utils/projectPreview';
+import { loadDesignOntoCanvas, restoreCanvasViewport } from '../../utils/projectPreview';
 import TemplatePreviewThumb from './TemplatePreviewThumb';
 import {
   Grid,
@@ -132,16 +132,34 @@ const Toolbar = () => {
     canvas.renderAll();
   };
 
+  const finalizeCanvasReplace = () => {
+    if (!canvas) return;
+    const pageW = pageSize.width;
+    const pageH = pageSize.height;
+    const zoom = canvas.getZoom();
+    restoreCanvasViewport(canvas, pageW, pageH, zoom);
+    canvas.discardActiveObject();
+    canvas._suppressLayout = false;
+    canvas.renderAll();
+    requestAnimationFrame(() => {
+      canvas.calcOffset?.();
+      requestAnimationFrame(() => {
+        canvas.fire('canvas:content-replaced');
+      });
+    });
+  };
+
   const loadTemplateJSON = async (json) => {
     if (!canvas || !json) return;
     const pageW = pageSize.width;
     const pageH = pageSize.height;
+    canvas._suppressLayout = true;
     await loadDesignOntoCanvas(canvas, json, pageW, pageH);
-    canvas.fire('canvas:content-replaced');
+    finalizeCanvasReplace();
   };
 
   const executeApplyBuiltin = (type) => {
-    if (!canvas) return;
+    if (!canvas || !type || type === 'blank') return;
     const json = buildNewspaperTemplateJSON(type, pageSize.width, pageSize.height);
     if (json) loadTemplateJSON(json);
     setTemplatesOpen(false);

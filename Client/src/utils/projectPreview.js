@@ -38,16 +38,60 @@ export function prepareDesignJSON(designSettings) {
   delete json.width;
   delete json.height;
   delete json.clipPath;
+  delete json.viewportTransform;
   return json;
 }
 
 export function restoreCanvasViewport(canvas, pageWidth, pageHeight, zoom) {
   if (!canvas || !pageWidth || !pageHeight) return;
   const z = zoom ?? canvas.getZoom();
+  const displayW = Math.ceil(pageWidth * z);
+  const displayH = Math.ceil(pageHeight * z);
+  canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
   canvas.setZoom(z);
-  canvas.setWidth(pageWidth * z);
-  canvas.setHeight(pageHeight * z);
+  canvas.setWidth(displayW);
+  canvas.setHeight(displayH);
   applyPageClip(canvas, pageWidth, pageHeight);
+  if (typeof canvas.calcOffset === 'function') {
+    canvas.calcOffset();
+  }
+  if (canvas.wrapperEl) {
+    canvas.wrapperEl.style.overflow = 'hidden';
+    canvas.wrapperEl.style.width = `${displayW}px`;
+    canvas.wrapperEl.style.height = `${displayH}px`;
+  }
+}
+
+/** Снимок для истории undo/redo — без размеров холста и clipPath редактора */
+export function canvasToHistoryJSON(canvas) {
+  if (!canvas) return null;
+  const json = canvas.toJSON(['isGridLine', 'excludeFromExport', 'isGuideLine']);
+  delete json.width;
+  delete json.height;
+  delete json.clipPath;
+  return JSON.stringify(json);
+}
+
+/** Загрузка снимка истории без смены масштаба и размера страницы */
+export function loadHistoryOntoCanvas(canvas, historyJson, pageWidth, pageHeight, onComplete) {
+  if (!canvas || !historyJson) {
+    onComplete?.();
+    return;
+  }
+
+  const json = prepareDesignJSON(historyJson);
+  const zoom = canvas.getZoom();
+
+  canvas._suppressLayout = true;
+  canvas.clear();
+
+  canvas.loadFromJSON(json, () => {
+    restoreCanvasViewport(canvas, pageWidth, pageHeight, zoom);
+    canvas.discardActiveObject();
+    canvas._suppressLayout = false;
+    canvas.renderAll();
+    onComplete?.();
+  });
 }
 
 /** Загрузка макета без смены размера страницы и текущего масштаба */
@@ -63,6 +107,7 @@ export function loadDesignOntoCanvas(canvas, designSettings, pageWidth, pageHeig
   return new Promise((resolve) => {
     canvas.loadFromJSON(json, () => {
       restoreCanvasViewport(canvas, pageWidth, pageHeight, zoom);
+      canvas.discardActiveObject();
       canvas._suppressLayout = false;
       canvas.renderAll();
       resolve();

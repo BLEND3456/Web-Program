@@ -12,6 +12,7 @@ import {
   cacheProjectPreview,
   canvasToDesignSettings,
   loadDesignOntoCanvas,
+  restoreCanvasViewport,
 } from '../../utils/projectPreview';
 import { Pencil, Minus, Plus } from 'lucide-react';
 import ThemeToggle from '../UI/ThemeToggle';
@@ -285,9 +286,7 @@ const WorkspaceInner = () => {
     if (newZoom < 0.1) newZoom = 0.1;
     if (newZoom > 5) newZoom = 5;
 
-    canvas.setZoom(newZoom);
-    canvas.setWidth(pageSize.width * newZoom);
-    canvas.setHeight(pageSize.height * newZoom);
+    restoreCanvasViewport(canvas, pageSize.width, pageSize.height, newZoom);
     canvas.renderAll();
     setZoomDisplay(newZoom);
     canvasContainerRef.current?.dispatchEvent(new CustomEvent('canvas-layout'));
@@ -394,8 +393,8 @@ const WorkspaceInner = () => {
 
   return (
     <div className="h-screen flex flex-col bg-app-bg text-app-text-secondary overflow-hidden font-sans selection:bg-indigo-500/30 transition-colors duration-200">
-      <header className="h-16 border-b border-app-border bg-app-bg/80 backdrop-blur-xl flex items-center justify-between px-6 z-20">
-        <div className="flex items-center gap-5">
+      <header className="relative z-30 shrink-0 h-16 border-b border-app-border bg-app-bg/80 backdrop-blur-xl flex items-center justify-between px-6 isolate">
+        <div className="flex items-center gap-5 min-w-0 flex-1">
           <button onClick={goToDashboard} className="p-2.5 bg-app-hover hover:bg-app-hover-strong rounded-xl transition-all text-app-muted hover:text-app-text">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
           </button>
@@ -413,7 +412,7 @@ const WorkspaceInner = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           <ThemeToggle />
           <button onClick={goToExport} className="px-5 py-2 hover:bg-app-hover rounded-xl text-xs font-semibold text-app-text-secondary border border-transparent hover:border-app-border">Экспорт PDF</button>
           <button onClick={() => setShowPresetModal(true)} className="px-5 py-2 hover:bg-app-hover rounded-xl text-xs font-semibold text-app-text-secondary border border-transparent hover:border-app-border">Создать пресет</button>
@@ -428,9 +427,9 @@ const WorkspaceInner = () => {
           <Toolbar />
         </aside>
 
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative isolate">
           <ContextBar />
-          <main className="flex-1 relative min-h-0 bg-app-canvas overflow-hidden">
+          <main className="flex-1 relative min-h-0 bg-app-canvas overflow-hidden isolate">
             <div className="absolute inset-0 opacity-40 canvas-grid-pattern pointer-events-none" />
             {settings.showRulers && (
               <>

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { fabric } from 'fabric';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { applyPageClip } from '../utils/projectPreview';
+import { canvasToHistoryJSON, loadHistoryOntoCanvas, restoreCanvasViewport } from '../utils/projectPreview';
 import { copyCanvasObjects, pasteCanvasObjects, isCanvasShortcutBlocked, hasCanvasClipboard } from '../utils/canvasClipboard';
 
 const SCROLL_PAD = 48;
@@ -58,8 +58,8 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700, 
       clearTimeout(saveTimeout.current);
       saveTimeout.current = setTimeout(() => {
         if (!canvas) return;
-        const json = JSON.stringify(canvas.toJSON(['isGridLine', 'excludeFromExport', 'isGuideLine']));
-        if (historyIndex.current >= 0 && historyStack.current[historyIndex.current] === json) return;
+        const json = canvasToHistoryJSON(canvas);
+        if (!json || (historyIndex.current >= 0 && historyStack.current[historyIndex.current] === json)) return;
         if (historyIndex.current < historyStack.current.length - 1) {
           historyStack.current = historyStack.current.slice(0, historyIndex.current + 1);
         }
@@ -81,25 +81,27 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700, 
       saveState();
     });
 
+    const applyHistoryStep = (index) => {
+      const { width: pageW, height: pageH } = dimensionsRef.current;
+      isHandlingHistory.current = true;
+      loadHistoryOntoCanvas(canvas, historyStack.current[index], pageW, pageH, () => {
+        updateSelectedObject(null);
+        isHandlingHistory.current = false;
+        containerRef.current?.dispatchEvent(new CustomEvent('canvas-layout'));
+      });
+    };
+
     const undo = () => {
       if (historyIndex.current > 0) {
-        isHandlingHistory.current = true;
         historyIndex.current--;
-        canvas.loadFromJSON(historyStack.current[historyIndex.current], () => {
-          canvas.renderAll();
-          isHandlingHistory.current = false;
-        });
+        applyHistoryStep(historyIndex.current);
       }
     };
 
     const redo = () => {
       if (historyIndex.current < historyStack.current.length - 1) {
-        isHandlingHistory.current = true;
         historyIndex.current++;
-        canvas.loadFromJSON(historyStack.current[historyIndex.current], () => {
-          canvas.renderAll();
-          isHandlingHistory.current = false;
-        });
+        applyHistoryStep(historyIndex.current);
       }
     };
 
@@ -202,9 +204,9 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700, 
     const resetHistory = () => {
       if (!canvas) return;
       isHandlingHistory.current = true;
-      const json = JSON.stringify(canvas.toJSON(['isGridLine', 'excludeFromExport', 'isGuideLine']));
-      historyStack.current = [json];
-      historyIndex.current = 0;
+      const json = canvasToHistoryJSON(canvas);
+      historyStack.current = json ? [json] : [];
+      historyIndex.current = json ? 0 : -1;
       isHandlingHistory.current = false;
     };
 
@@ -326,6 +328,12 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700, 
       container.dispatchEvent(new CustomEvent('canvas-zoom'));
     };
 
+    const applyZoomToCanvas = (zoom) => {
+      const { width: pageW, height: pageH } = dimensionsRef.current;
+      restoreCanvasViewport(canvas, pageW, pageH, zoom);
+      canvas.renderAll();
+    };
+
     const syncScrollArea = () => {
       const c = canvasInstance.current;
       const content = scrollContentRef?.current;
@@ -333,24 +341,52 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700, 
 
       const { width: pageW, height: pageH } = dimensionsRef.current;
       const zoom = c.getZoom();
-      const displayW = Math.round(pageW * zoom);
-      const displayH = Math.round(pageH * zoom);
+      const wrapper = c.wrapperEl;
+
+      // Расчётный размер — источник истины; wrapper мог остаться со старым zoom
+      const displayW = Math.ceil(pageW * zoom);
+      const displayH = Math.ceil(pageH * zoom);
+      if (wrapper) {
+        wrapper.style.width = `${displayW}px`;
+        wrapper.style.height = `${displayH}px`;
+      }
+
+      const paperEl = content.firstElementChild;
+      if (paperEl) {
+        paperEl.style.width = `${displayW}px`;
+        paperEl.style.minHeight = `${displayH}px`;
+      }
+
       const pad = SCROLL_PAD;
       const innerW = displayW + pad * 2;
       const innerH = displayH + pad * 2;
 
       const totalW = Math.max(container.clientWidth, innerW);
-      const totalH = Math.max(container.clientHeight, innerH);
-      const zoomedIn = innerH > container.clientHeight + 1;
+      const needsVerticalScroll = innerH > container.clientHeight + 1;
 
       content.style.width = `${totalW}px`;
-      content.style.minHeight = `${totalH}px`;
-      content.style.height = `${totalH}px`;
-      content.style.padding = `${pad}px`;
       content.style.boxSizing = 'border-box';
       content.style.display = 'flex';
       content.style.justifyContent = 'center';
-      content.style.alignItems = zoomedIn ? 'flex-start' : 'center';
+      content.style.alignItems = 'flex-start';
+
+      if (needsVerticalScroll) {
+        content.style.paddingTop = `${pad}px`;
+        content.style.paddingBottom = `${pad}px`;
+        content.style.paddingLeft = `${pad}px`;
+        content.style.paddingRight = `${pad}px`;
+        content.style.height = `${innerH}px`;
+        content.style.minHeight = `${innerH}px`;
+      } else {
+        const spare = Math.max(0, container.clientHeight - innerH);
+        const topPad = pad + spare / 2;
+        content.style.paddingTop = `${topPad}px`;
+        content.style.paddingBottom = `${topPad}px`;
+        content.style.paddingLeft = `${pad}px`;
+        content.style.paddingRight = `${pad}px`;
+        content.style.height = `${container.clientHeight}px`;
+        content.style.minHeight = `${container.clientHeight}px`;
+      }
     };
 
     let layoutRaf = null;
@@ -369,12 +405,7 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700, 
       const availableHeight = container.clientHeight - 80;
 
       currentScale = Math.min(availableWidth / pageW, availableHeight / pageH);
-
-      canvas.setZoom(currentScale);
-      canvas.setWidth(pageW * currentScale);
-      canvas.setHeight(pageH * currentScale);
-      applyPageClip(canvas, pageW, pageH);
-      canvas.renderAll();
+      applyZoomToCanvas(currentScale);
       scheduleScrollSync();
       notifyZoom();
     };
@@ -412,10 +443,7 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700, 
       const originalX = mouseXOnCanvas / activeScale;
       const originalY = mouseYOnCanvas / activeScale;
 
-      canvas.setZoom(newScale);
-      canvas.setWidth(dimensionsRef.current.width * newScale);
-      canvas.setHeight(dimensionsRef.current.height * newScale);
-      canvas.renderAll();
+      applyZoomToCanvas(newScale);
 
       const newMouseXOnCanvas = originalX * newScale;
       const newMouseYOnCanvas = originalY * newScale;
@@ -475,11 +503,22 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700, 
       const c = canvasInstance.current;
       if (!c) return;
       const { width: pageW, height: pageH } = dimensionsRef.current;
-      const zoom = c.getZoom();
-      c.setWidth(pageW * zoom);
-      c.setHeight(pageH * zoom);
-      applyPageClip(c, pageW, pageH);
+      restoreCanvasViewport(c, pageW, pageH, c.getZoom());
       c.renderAll();
+    };
+
+    const onContentReplaced = () => {
+      resetCanvasToPage();
+      notifyZoom();
+      const runSync = () => {
+        syncScrollArea();
+        canvas.calcOffset?.();
+      };
+      scheduleScrollSync();
+      requestAnimationFrame(() => {
+        runSync();
+        requestAnimationFrame(runSync);
+      });
     };
 
     const onLayout = () => {
@@ -488,12 +527,6 @@ export const useFabric = (canvasRef, containerRef, width = 1200, height = 1700, 
     };
 
     const onLayoutNow = () => syncScrollArea();
-
-    const onContentReplaced = () => {
-      resetCanvasToPage();
-      scheduleScrollSync();
-      notifyZoom();
-    };
 
     const onProjectLoaded = () => {
       resetCanvasToPage();
